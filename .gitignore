@@ -1,0 +1,39 @@
+# build-prompt scaffolding (local only)
+Goal.md
+prompt.md
+plan.md
+
+# Dependencies
+node_modules/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local runtime state (seeds, keys, peer stores, logs)
+.spike/
+.qvac/
+.stores/
+*.log
+
+# Models (large binaries, fetched at runtime)
+*.gguf
+models/
+
+# Build artifacts
+dist/
+build/
+artifacts/
+cache/
+
+# Local tooling / editor
+.claude/
+.DS_Store
+
+# Video files (renders + screen recordings) — never commit
+*.mp4
+*.webm
+*.mov
+video/out/
+video/node_modules/
