@@ -17,6 +17,7 @@ import { validateBet, betHash } from "@punt/shared/bet.js";
 import { buildParseHistory, extractBetDraft } from "@punt/shared/parse.js";
 import { startLocalLlm } from "@punt/shared/llm.js";
 import { settlementConfigFromEnv, signingAccount, usdtBalance } from "@punt/shared/wdk.js";
+import { majorityWinner } from "@punt/shared/verdict.js";
 import { readEnvFile, writeEnvFile, ROOT } from "../../scripts/env-file.js";
 
 const role = process.env.PUNT_ROLE ?? "CREATOR";
@@ -65,7 +66,11 @@ const escrowRead = new ethers.Contract(
   provider,
 );
 const erc20 = new ethers.Interface(["function approve(address,uint256)"]);
-const escrowAbi = new ethers.Interface(["function create(bytes32,uint256,address[3],uint64)", "function join(bytes32)"]);
+const escrowAbi = new ethers.Interface([
+  "function create(bytes32,uint256,address[3],uint64)",
+  "function join(bytes32)",
+  "function settle(bytes32,address,bytes[])",
+]);
 
 let llm = null;
 let llmProgress = 0;
@@ -105,7 +110,8 @@ async function stateSnapshot() {
   const withStatus = await Promise.all(
     bets.map(async (bet) => {
       const id = betHash(bet);
-      return { ...bet, betId: id, potStatus: await potStatus(id), mine: bet.payout === myAddress };
+      const verdicts = (await feed.listVerdicts(id)).map(({ juror, winner, reasoning }) => ({ juror, winner, reasoning }));
+      return { ...bet, betId: id, potStatus: await potStatus(id), mine: bet.payout === myAddress, verdicts };
     }),
   );
   const [usdt, eth] = await Promise.all([
@@ -143,7 +149,8 @@ async function postBet(draft) {
 
   const betId = betHash(bet);
   const stake = toUnits(bet.stake);
-  const deadline = BigInt(Math.floor((Date.parse(bet.match.kickoff) + JURY_GRACE_MS) / 1000));
+  // for bets on already-finished matches (the live-demo case) keep a real jury window
+  const deadline = BigInt(Math.floor(Math.max(Date.parse(bet.match.kickoff) + JURY_GRACE_MS, Date.now() + JURY_GRACE_MS) / 1000));
   const jurors = [env.JUROR1_ADDRESS, env.JUROR2_ADDRESS, env.JUROR3_ADDRESS];
   await sendAndWait(cfg.usdtContract, erc20.encodeFunctionData("approve", [cfg.escrowContract, stake]), "approve");
   await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("create", ["0x" + betId, stake, jurors, deadline]), "create pot");
@@ -158,6 +165,37 @@ async function joinBet(betId, stake) {
   potCache.delete(betId);
   return { betId };
 }
+
+// the winner watches the verdict gossip and submits the 2-of-3 settle themselves
+const settled = new Set();
+async function settleWatch() {
+  for (const bet of await feed.listBets().catch(() => [])) {
+    const betId = betHash(bet);
+    if (settled.has(betId)) continue;
+    if ((await potStatus(betId)) !== "matched") continue;
+    const verdicts = await feed.listVerdicts(betId);
+    const majority = majorityWinner(verdicts, [env.JUROR1_ADDRESS, env.JUROR2_ADDRESS, env.JUROR3_ADDRESS], {
+      chainId: BigInt(cfg.chainId),
+      escrow: cfg.escrowContract,
+      betId: "0x" + betId,
+    });
+    if (!majority || majority.winner !== myAddress) continue;
+    console.log(`[${role}] jury majority says we won ${betId.slice(0, 12)}… — settling`);
+    try {
+      await sendAndWait(
+        cfg.escrowContract,
+        escrowAbi.encodeFunctionData("settle", ["0x" + betId, majority.winner, majority.sigs]),
+        "settle",
+      );
+      settled.add(betId);
+      potCache.delete(betId);
+      console.log(`[${role}] pot released — the winner's USDT is home`);
+    } catch (err) {
+      console.error(`[${role}] settle failed:`, err.message);
+    }
+  }
+}
+setInterval(() => settleWatch().catch(() => {}), 10000);
 
 // ---- localhost API for the renderer -------------------------------------
 

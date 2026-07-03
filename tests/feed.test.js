@@ -54,3 +54,35 @@ test("optimistic bet from non-writer converges on both peers; junk never lands",
   await a.close();
   await b.close();
 });
+
+test("verdict messages replicate; malformed verdicts never land", async (t) => {
+  const dirA = await mkdtemp(join(tmpdir(), "punt-va-"));
+  const dirB = await mkdtemp(join(tmpdir(), "punt-vb-"));
+  t.after(() => Promise.all([rm(dirA, { recursive: true, force: true }), rm(dirB, { recursive: true, force: true })]));
+
+  const a = await createFeed({ storage: dirA });
+  const b = await createFeed({ storage: dirB, key: a.key });
+  const s1 = a.replicate(true);
+  const s2 = b.replicate(false);
+  s1.pipe(s2).pipe(s1);
+
+  const verdict = {
+    type: "verdict",
+    betId: "c".repeat(64),
+    winner: "0x" + "3".repeat(40),
+    juror: "0x" + "4".repeat(40),
+    sig: "0x" + "ab".repeat(65),
+    reasoning: "France won 2-1 at full time, so the creator's call is correct.",
+  };
+  await b.postVerdict(verdict);
+  await b.base.append({ type: "verdict", betId: "nope" }, { optimistic: true }); // junk
+
+  await eventually(async () => (await a.listVerdicts(verdict.betId)).length === 1);
+  const got = (await a.listVerdicts(verdict.betId))[0];
+  assert.equal(got.winner, verdict.winner);
+  assert.equal((await a.listVerdicts("d".repeat(64))).length, 0);
+  assert.equal((await a.listBets()).length, 0); // verdicts don't pollute the bet list
+
+  await a.close();
+  await b.close();
+});

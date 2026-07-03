@@ -29,7 +29,10 @@
     "peer:creator": "PUNT_ROLE=CREATOR PUNT_UI_PORT=9701 PUNT_FEED_LISTEN=9471 node packages/app/peer.js",
     "peer:joiner": "PUNT_ROLE=JOINER PUNT_UI_PORT=9702 PUNT_FEED_CONNECT=127.0.0.1:9471 node packages/app/peer.js",
     "app:creator": "PUNT_ROLE=CREATOR PUNT_UI_PORT=9701 electron packages/app/main.cjs",
-    "app:joiner": "PUNT_ROLE=JOINER PUNT_UI_PORT=9702 electron packages/app/main.cjs"
+    "app:joiner": "PUNT_ROLE=JOINER PUNT_UI_PORT=9702 electron packages/app/main.cjs",
+    "juror1": "PUNT_JUROR=1 node packages/juror/index.js",
+    "juror2": "PUNT_JUROR=2 node packages/juror/index.js",
+    "juror3": "PUNT_JUROR=3 node packages/juror/index.js"
   },
   "dependencies": {
     "@qvac/sdk": "^0.13.5",

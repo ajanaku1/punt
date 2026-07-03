@@ -1,6 +1,7 @@
 import Autobase from "autobase";
 import Corestore from "corestore";
 import { validateBet } from "@punt/shared/bet.js";
+import { validateVerdictMsg } from "@punt/shared/verdict.js";
 
 /**
  * The Punt bet feed: an optimistic multi-writer Autobase.
@@ -20,8 +21,10 @@ export async function createFeed({ storage, key = null }) {
     async apply(nodes, view, host) {
       for (const node of nodes) {
         const msg = node.value;
-        if (msg?.type !== "bet") continue;
-        if (!validateBet(msg).ok) continue;
+        const valid =
+          (msg?.type === "bet" && validateBet(msg).ok) ||
+          (msg?.type === "verdict" && validateVerdictMsg(msg));
+        if (!valid) continue;
         await host.ackWriter(node.from.key);
         await view.append(msg);
       }
@@ -29,17 +32,25 @@ export async function createFeed({ storage, key = null }) {
   });
   await base.ready();
 
+  async function listAll() {
+    await base.update();
+    const messages = [];
+    for (let i = 0; i < base.view.length; i++) messages.push(await base.view.get(i));
+    return messages;
+  }
+
   return {
     key: base.key,
     localKey: base.local.key,
     base,
     replicate: (isInitiatorOrStream) => base.replicate(isInitiatorOrStream),
     postBet: (bet) => base.append(bet, { optimistic: true }),
+    postVerdict: (verdict) => base.append(verdict, { optimistic: true }),
     async listBets() {
-      await base.update();
-      const bets = [];
-      for (let i = 0; i < base.view.length; i++) bets.push(await base.view.get(i));
-      return bets;
+      return (await listAll()).filter((m) => m.type === "bet");
+    },
+    async listVerdicts(betId) {
+      return (await listAll()).filter((m) => m.type === "verdict" && (!betId || m.betId === betId));
     },
     async close() {
       await base.close();
