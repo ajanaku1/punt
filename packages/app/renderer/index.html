@@ -204,6 +204,11 @@
   .btn.primary:active { transform: scale(.97); }
   .btn.primary[disabled] { opacity: .4; pointer-events: none; }
   .btn.ghost { background: var(--surface); color: var(--body); border-top: 1px solid var(--line); }
+  .btn.ghost:active { transform: scale(.97); }
+  textarea:focus-visible { box-shadow: inset 0 0 0 2px var(--lime-dim); }
+  @media (prefers-reduced-motion: reduce) {
+    .card.flying, .btn, .fab, .tab, .revisit { transition: none !important; }
+  }
   .note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 16px; }
   .note.err { color: var(--red); }
 
