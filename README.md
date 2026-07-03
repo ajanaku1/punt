@@ -1,0 +1,151 @@
+# Punt: swipe-to-stake football bets with no bookmaker
+
+Post a football bet in plain English, let a friend swipe right to match your stake, and let a jury of on-device AI models pay the winner. No company hosts the market, resolves it, or takes a cut, because there is no server to host it on.
+
+[![Node](https://img.shields.io/badge/Node-25-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8-363636?logo=solidity)](https://soliditylang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-37_passing-brightgreen)]()
+
+<!-- TODO: Add screenshot docs/images/landing.png -->
+
+## What Is Punt?
+
+Every prediction app is a platform: a company hosts the markets, settles them, and takes a cut. Punt is the version a platform cannot be. Bets replicate peer-to-peer over an Autobase feed, stakes sit in self-custodial WDK wallets escrowed on-chain, and settlement is decided by three peers each running a language model on their own machine. Built for the Tether Developers Cup on all three Tether stacks: Pears, QVAC, and WDK.
+
+---
+
+## Features
+
+- **Plain-English bets**: type "England keep a clean sheet against Ghana on Sunday, tenner on it" and a local LLM turns it into resolvable terms, flagging anything it had to guess.
+- **Swipe to stake**: the home screen is a card stack of open bets from every peer. Swipe right to match the stake with real testnet USDT. Swipe left to pass.
+- **No bookmaker, no odds**: fixed-stake two-sided pots between friends. Winner takes the pot.
+- **AI jury settlement**: three peers grade the bet independently against official football-data.org results, each with their own on-device model at temperature 0. Two matching signed verdicts release the escrow.
+- **Spam defense**: the feed validates every bet before acknowledging it. Junk never reaches anyone's swipe stack.
+- **Self-custody throughout**: every stake movement is signed by the user's own WDK wallet. The escrow contract is the only thing that ever holds funds.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Why it is load-bearing |
+|-------|-----------|------------------------|
+| Bet feed | Pears (Autobase + Corestore) | The feed is an optimistic multi-writer Autobase replicated between peers. Remove it and there is no app. |
+| AI | QVAC (`@qvac/sdk`, Llama 3.2 1B on-device) | Bet parsing and every juror verdict run locally. No cloud AI anywhere. |
+| Wallets | WDK (`@tetherto/wdk-wallet-evm`) | All stake custody and escrow calls go through self-custodial WDK wallets. |
+| Escrow | Solidity 0.8 on Base Sepolia | Fixed-stake pots keyed by bet hash, released by 2-of-3 jury signatures. |
+| Shell | Electron | Phone-shaped desktop window. All P2P and AI work runs in a separate Node daemon. |
+
+---
+
+## Testing the App
+
+### Part 1: setup
+
+1. Install Node 22+ and clone the repo.
+2. Run `npm install --registry=https://registry.npmjs.org`.
+3. Run `node scripts/fund-wallets.js`. It generates five wallets into a gitignored `.env` and prints their addresses.
+4. Fund the CREATOR and JOINER addresses with a little Base Sepolia ETH ([faucet](https://www.alchemy.com/faucets/base-sepolia)). Jurors never need gas.
+5. Run `node scripts/deploy.js`. It deploys the test USDT and the escrow, then mints 100 USDT to each player.
+6. Get a free API key from [football-data.org](https://www.football-data.org/client/register) and add `FOOTBALL_DATA_KEY=<key>` to `.env`.
+
+### Part 2: the journey
+
+1. Run `npm run demo`. Two phone-shaped windows open (creator and joiner), and three juror processes start printing to the terminal.
+2. On the creator phone, press `+` and type a bet on a recently finished real match, for example "Morocco beat Ecuador yesterday, 4 on it". The local model reads it back as structured terms. Press POST. Your stake locks in the escrow.
+3. Watch the bet appear on the joiner phone's card stack. It arrived over P2P replication, not through any server.
+4. Swipe right on the joiner phone. The joiner's stake locks. The pot now holds both stakes on-chain.
+5. Watch the terminal. Each juror fetches the official result, grades the bet with its own local model, and prints its signed verdict.
+6. The winner's daemon collects two matching signatures and settles. The winner's USDT balance rises by the whole pot.
+
+### Part 3: spam defense
+
+Run `node scripts/junk-check.js`. A peer appends two junk messages and one valid bet. The output shows only the valid bet ever reaches the feed.
+
+---
+
+## Smart Contracts
+
+| Contract | Description |
+|----------|-------------|
+| `Escrow.sol` | One pot per bet, keyed by the bet's canonical hash. Creator stakes on create, one joiner counter-stakes, 2-of-3 juror signatures release the pot to the winner, timeout refunds both sides. |
+| `MockUSDT.sol` | Six-decimal test USDT with an open faucet mint. Test token on a testnet, no value. |
+
+Both are deployed on Base Sepolia. Addresses are written to `.env` by the deploy script.
+
+---
+
+## How It Works
+
+```
+ creator phone                                joiner phone
+ (Electron)                                   (Electron)
+      |                                            |
+ peer daemon A  <----- Autobase feed ----->  peer daemon B
+ (feed+WDK+LLM)     optimistic replication   (feed+WDK+LLM)
+      |                                            |
+      |  create pot                       join pot |
+      +-----------------+    +---------------------+
+                        v    v
+                   Escrow contract  (Base Sepolia)
+                        ^    ^
+                        |    |  settle (2-of-3 signatures)
+      +--------+   +--------+   +--------+
+      | juror1 |   | juror2 |   | juror3 |     each: own Corestore,
+      +--------+   +--------+   +--------+     own local LLM, own key
+           \            |            /
+            +--- football-data.org -+          official results feed
+```
+
+A bet is appended optimistically to the shared Autobase. Every indexer validates the schema before acknowledging the writer, so invalid bets never converge. Verdicts travel over the same feed as signed messages. The escrow verifies the jury signatures on-chain with `ecrecover`, so the contract itself is the final arbiter of who gets paid.
+
+**Trust assumption**: settlement is honest-majority across the three jurors. Collusion resistance beyond that is out of scope for this prototype.
+
+**Third-party services disclosed**: football-data.org (official match results) and a Base Sepolia RPC endpoint. Everything else, including all AI inference, runs on the peers' machines.
+
+---
+
+## Running Locally
+
+```bash
+git clone <repo-url> punt && cd punt
+npm install --registry=https://registry.npmjs.org
+node scripts/fund-wallets.js       # generate wallets into .env
+# fund CREATOR + JOINER with Base Sepolia ETH, then:
+node scripts/deploy.js             # deploy USDT + escrow, mint test funds
+npm test                           # 37 tests (escrow tests need foundry's anvil)
+npm run demo                       # the full two-phone, three-juror demo
+```
+
+Individual pieces:
+
+```bash
+node scripts/p2p-check.js          # two-process replication proof
+node scripts/junk-check.js         # spam rejection proof
+node scripts/join-check.js         # WDK wallets fund a pot on-chain
+npm run peer:creator               # one peer daemon, headless
+npm run juror1                     # one juror, headless
+```
+
+---
+
+## Project Structure
+
+```
+punt/
+  contracts/            Escrow.sol + MockUSDT.sol
+  packages/
+    shared/             bet schema, parse prompts, verdict signing, WDK helpers
+    feed/               the Autobase optimistic feed
+    juror/              grading prompts, football-data client, juror daemon
+    app/                peer daemon, Electron shell, swipe UI
+  scripts/              fund-wallets, deploy, demo, proofs
+  tests/                37 node:test specs (schema, feed, escrow, parse, verdicts)
+  proposals/            the three UI direction mocks
+```
+
+---
+
+## License
+
+MIT

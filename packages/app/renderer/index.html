@@ -10,7 +10,8 @@
   :root {
     --bg: #090c12; --surface: #0f141d; --elevated: #171e2a;
     --text: #eef1f6; --body: #b4bcc9; --muted: #5d6674;
-    --lime: #c8f03c; --lime-dim: #8fae26; --amber: #eab308; --line: rgba(255,255,255,.05);
+    --lime: #c8f03c; --lime-dim: #8fae26; --amber: #eab308; --red: #e2564a;
+    --line: rgba(255,255,255,.05);
   }
   html, body { height: 100%; overflow: hidden; }
   body {
@@ -36,13 +37,23 @@
   }
   .ticker b { color: var(--lime-dim); }
 
-  /* card stack */
+  /* tab pages */
+  .page { flex: 1; display: none; flex-direction: column; overflow: hidden; position: relative; }
+  .page.active { display: flex; }
+
+  /* ---- HOME: card stack ---- */
   .stack { flex: 1; position: relative; padding: 18px 16px 0; overflow: hidden; }
   .empty {
-    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px;
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px;
     align-items: center; justify-content: center; color: var(--muted); text-align: center; padding: 0 40px;
   }
-  .empty b { color: var(--body); font-weight: 600; }
+  .empty b { color: var(--body); font-weight: 600; font-size: 17px; }
+  .revisit {
+    margin-top: 8px; background: var(--surface); color: var(--lime); border-top: 1px solid var(--line);
+    font-weight: 700; font-size: 13px; letter-spacing: .06em; padding: 12px 22px; cursor: pointer;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  }
+  .revisit:active { transform: scale(.97); }
   .card {
     position: absolute; inset: 18px 16px auto; height: calc(100% - 40px);
     background: linear-gradient(160deg, var(--elevated), var(--surface) 55%);
@@ -59,7 +70,7 @@
     font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
     padding: 4px 10px; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
   }
-  .comp-tag.matched { background: var(--amber); }
+  .comp-tag.skipped { background: var(--amber); }
   .scoreline { margin-top: 16px; display: flex; align-items: center; gap: 12px; }
   .team {
     flex: 1; background: var(--surface); border-top: 1px solid var(--line);
@@ -82,25 +93,85 @@
     font-size: 34px; font-weight: 800; letter-spacing: .1em; opacity: 0; pointer-events: none;
   }
   .verdict-stamp.take { color: var(--lime); }
-  .verdict-stamp.pass { color: #e2564a; }
-
-  .hints { display: flex; justify-content: space-between; padding: 14px 28px; font-size: 13px; color: var(--muted); }
+  .verdict-stamp.pass { color: var(--red); }
+  .hints { display: flex; justify-content: space-between; padding: 12px 28px; font-size: 13px; color: var(--muted); }
   .hints .take { color: var(--lime); font-weight: 700; }
-
   .fab {
-    position: absolute; right: 22px; bottom: 76px; width: 54px; height: 54px;
+    position: absolute; right: 22px; bottom: 20px; width: 54px; height: 54px;
     background: var(--lime); color: #101502; font-size: 30px; font-weight: 800;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-    box-shadow: 0 10px 30px rgba(200,240,60,.25);
+    box-shadow: 0 10px 30px rgba(200,240,60,.25); z-index: 5;
   }
   .fab:active { transform: scale(.96); }
 
-  /* composer overlay */
-  .composer {
-    position: absolute; inset: 0; background: var(--bg); padding: 20px 18px;
-    display: none; flex-direction: column; z-index: 10;
+  /* ---- HISTORY ---- */
+  .list { flex: 1; overflow-y: auto; padding: 14px 16px 20px; }
+  .section-label {
+    font-size: 11px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase;
+    margin: 10px 2px 8px;
   }
+  .hrow {
+    background: var(--surface); border-top: 1px solid var(--line); margin-bottom: 8px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
+    clip-path: polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+  }
+  .hrow .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .hrow .sel { font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hrow .fixture { font-size: 12px; color: var(--muted); }
+  .hrow .foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .pill {
+    flex-shrink: 0; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    padding: 3px 9px; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  }
+  .pill.open { background: var(--elevated); color: var(--body); }
+  .pill.matched { background: var(--amber); color: #1a1402; }
+  .pill.won { background: var(--lime); color: #101502; }
+  .pill.lost { background: var(--red); color: #fff; }
+  .pill.skipped { background: var(--elevated); color: var(--muted); }
+  .reason { font-size: 12px; color: var(--body); border-left: 2px solid var(--lime-dim); padding-left: 8px; margin-top: 4px; }
+  .list .empty-line { color: var(--muted); text-align: center; padding: 30px 30px; font-size: 14px; }
+
+  /* ---- PROFILE ---- */
+  .profile { flex: 1; overflow-y: auto; padding: 18px 16px; }
+  .id-card {
+    background: linear-gradient(160deg, var(--elevated), var(--surface) 60%);
+    border-top: 1px solid rgba(255,255,255,.07); padding: 20px 18px;
+    clip-path: polygon(0 14px, 14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+    box-shadow: 0 14px 34px rgba(0,0,0,.45);
+  }
+  .id-card .role { font-size: 11px; letter-spacing: .16em; color: var(--muted); text-transform: uppercase; }
+  .id-card .addr { font-size: 15px; font-weight: 700; margin-top: 6px; word-break: break-all; user-select: text; }
+  .id-card .copy { margin-top: 8px; font-size: 12px; color: var(--lime); cursor: pointer; width: fit-content; }
+  .balances { display: flex; gap: 10px; margin-top: 14px; }
+  .stat-grid { display: flex; gap: 10px; margin-top: 14px; }
+  .stat { flex: 1; background: var(--surface); border-top: 1px solid var(--line); padding: 12px; text-align: center; }
+  .stat .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat .v.lime { color: var(--lime); }
+  .stat .k { font-size: 10px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+  .kv { margin-top: 16px; }
+  .kv .row {
+    display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; font-size: 13px;
+    background: var(--surface); margin-bottom: 5px; border-left: 3px solid var(--lime-dim);
+  }
+  .kv .k { color: var(--muted); flex-shrink: 0; }
+  .kv b { text-align: right; word-break: break-all; font-weight: 600; user-select: text; }
+
+  /* ---- bottom tab bar ---- */
+  .tabs {
+    display: flex; background: var(--surface); border-top: 1px solid rgba(255,255,255,.07);
+    padding: 6px 8px 10px;
+  }
+  .tab {
+    flex: 1; text-align: center; color: var(--muted); font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; padding: 8px 0 4px; cursor: pointer;
+  }
+  .tab .glyph { display: block; font-size: 19px; margin-bottom: 2px; }
+  .tab.active { color: var(--lime); }
+  .tab:active { transform: scale(.95); }
+
+  /* ---- composer overlay ---- */
+  .composer { position: absolute; inset: 0; background: var(--bg); padding: 20px 18px; display: none; flex-direction: column; z-index: 10; }
   .composer.open { display: flex; }
   .lower-third {
     background: var(--lime); color: #101502; width: fit-content;
@@ -124,10 +195,7 @@
   .readout b { color: var(--text); text-align: right; }
   .readout .row.flag b { color: var(--amber); }
   .btn-row { margin-top: auto; display: flex; gap: 10px; padding-top: 14px; }
-  .btn {
-    flex: 1; text-align: center; font-weight: 800; font-size: 15px; padding: 15px;
-    cursor: pointer; letter-spacing: .04em;
-  }
+  .btn { flex: 1; text-align: center; font-weight: 800; font-size: 15px; padding: 15px; cursor: pointer; letter-spacing: .04em; }
   .btn.primary {
     background: var(--lime); color: #101502; font-style: italic;
     clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
@@ -137,17 +205,14 @@
   .btn.primary[disabled] { opacity: .4; pointer-events: none; }
   .btn.ghost { background: var(--surface); color: var(--body); border-top: 1px solid var(--line); }
   .note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 16px; }
-  .note.err { color: #e2564a; }
+  .note.err { color: var(--red); }
 
-  /* toast */
   .toast {
-    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%);
     background: var(--elevated); border-top: 1px solid rgba(255,255,255,.08); color: var(--text);
     padding: 10px 18px; font-size: 13px; z-index: 20; display: none; white-space: nowrap;
     box-shadow: 0 10px 26px rgba(0,0,0,.5);
   }
-  .spinner { display: inline-block; animation: spin 900ms linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -156,11 +221,35 @@
     <div class="wallet">◈ <b id="usdt">—</b> USDT</div>
   </div>
   <div class="ticker" id="ticker">CONNECTING TO PEERS…</div>
-  <div class="stack" id="stack">
-    <div class="empty" id="empty"><b>Nothing to swipe yet.</b><span>When a mate posts a bet, it lands here. Or call your own shot with +.</span></div>
+
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="stack" id="stack">
+      <div class="empty" id="empty">
+        <b>Nothing to swipe.</b>
+        <span id="empty-sub">When a mate posts a bet, it lands here. Or call your own shot with +.</span>
+        <div class="revisit" id="revisit" style="display:none">REVISIT SKIPPED BETS</div>
+      </div>
+    </div>
+    <div class="hints"><span>← pass</span><span class="take">match the stake →</span></div>
+    <div class="fab" id="fab">+</div>
   </div>
-  <div class="hints"><span>← pass</span><span class="take">match the stake →</span></div>
-  <div class="fab" id="fab">+</div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="list" id="history-list"></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="page" id="page-profile">
+    <div class="profile" id="profile"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="home"><span class="glyph">◈</span>Home</div>
+    <div class="tab" data-tab="history"><span class="glyph">≡</span>History</div>
+    <div class="tab" data-tab="profile"><span class="glyph">◎</span>Profile</div>
+  </div>
 
   <div class="composer" id="composer">
     <div class="lower-third">YOUR CALL</div>

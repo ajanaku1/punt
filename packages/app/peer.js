@@ -89,20 +89,25 @@ async function sendAndWait(to, data, label) {
 
 const toUnits = (usdt) => BigInt(Math.round(usdt * 1e6));
 
-const potCache = new Map(); // betId → { status, refreshedAt }
-async function potStatus(betId) {
+const potCache = new Map(); // betId → { info, refreshedAt }
+async function potInfo(betId) {
   const cached = potCache.get(betId);
-  if (cached && Date.now() - cached.refreshedAt < 4000) return cached.status;
+  if (cached && Date.now() - cached.refreshedAt < 4000) return cached.info;
   const pot = await escrowRead.pots("0x" + betId).catch(() => null);
-  let status = "unfunded";
+  let info = { status: "unfunded", creator: null, joiner: null };
   if (pot && pot.creator !== ethers.ZeroAddress) {
-    if (pot.closed) status = "settled";
-    else if (pot.joiner !== ethers.ZeroAddress) status = "matched";
-    else status = "open";
+    const status = pot.closed ? "settled" : pot.joiner !== ethers.ZeroAddress ? "matched" : "open";
+    info = { status, creator: pot.creator, joiner: pot.joiner === ethers.ZeroAddress ? null : pot.joiner };
   }
-  const entry = { status, refreshedAt: Date.now() };
-  potCache.set(betId, entry);
-  return status;
+  potCache.set(betId, { info, refreshedAt: Date.now() });
+  return info;
+}
+const potStatus = async (betId) => (await potInfo(betId)).status;
+
+function majorityVerdictWinner(verdicts) {
+  const tally = new Map();
+  for (const v of verdicts) tally.set(v.winner, (tally.get(v.winner) ?? 0) + 1);
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
 async function stateSnapshot() {
@@ -111,7 +116,16 @@ async function stateSnapshot() {
     bets.map(async (bet) => {
       const id = betHash(bet);
       const verdicts = (await feed.listVerdicts(id)).map(({ juror, winner, reasoning }) => ({ juror, winner, reasoning }));
-      return { ...bet, betId: id, potStatus: await potStatus(id), mine: bet.payout === myAddress, verdicts };
+      const pot = await potInfo(id);
+      return {
+        ...bet,
+        betId: id,
+        potStatus: pot.status,
+        mine: bet.payout === myAddress,
+        joinedByMe: pot.joiner === myAddress,
+        winnerAddress: pot.status === "settled" ? majorityVerdictWinner(verdicts) : null,
+        verdicts,
+      };
     }),
   );
   const [usdt, eth] = await Promise.all([
@@ -126,6 +140,7 @@ async function stateSnapshot() {
     modelReady: !!llm,
     modelProgress: llmProgress,
     feedKey: feed.key.toString("hex"),
+    peerKey: feed.localKey.toString("hex"),
     bets: withStatus,
   };
 }
