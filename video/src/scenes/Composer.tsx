@@ -21,7 +21,7 @@ export const Composer: React.FC = () => {
       <AnimatedBackground />
       <AbsoluteFill style={{ flexDirection: "row", alignItems: "center", padding: "0 110px", gap: 90 }}>
         {/* real recording: typing the Portugal bet, model reads it back, POST */}
-        <PhoneShell src="assets/composer-rec.mp4" label="your phone" delay={5} startFrom={60} />
+        <PhoneShell src="assets/composer-fast.mp4" label="your phone" delay={5} startFrom={0} />
         <div style={{ flex: 1 }}>
           <GlowText text="Call your shot" fontSize={64} color={COLORS.white} delay={16}
             style={{ fontStyle: "italic" }} />

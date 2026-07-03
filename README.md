@@ -5,7 +5,7 @@ Post a football bet in plain English, let a friend swipe right to match your sta
 [![Node](https://img.shields.io/badge/Node-25-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636?logo=solidity)](https://soliditylang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-37_passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-38_passing-brightgreen)]()
 
 <!-- TODO: Add screenshot docs/images/landing.png -->
 
@@ -31,7 +31,7 @@ Every prediction app is a platform: a company hosts the markets, settles them, a
 | Layer | Technology | Why it is load-bearing |
 |-------|-----------|------------------------|
 | Bet feed | Pears (Autobase + Corestore) | The feed is an optimistic multi-writer Autobase replicated between peers. Remove it and there is no app. |
-| AI | QVAC (`@qvac/sdk`, Llama 3.2 1B on-device) | Bet parsing and every juror verdict run locally. No cloud AI anywhere. |
+| AI | QVAC (`@qvac/sdk`) — Llama 3.2 1B parses, Qwen3 4B judges, both on-device | Bet parsing and every juror verdict run locally. No cloud AI anywhere. |
 | Wallets | WDK (`@tetherto/wdk-wallet-evm`) | All stake custody and escrow calls go through self-custodial WDK wallets. |
 | Escrow | Solidity 0.8 on Base Sepolia | Fixed-stake pots keyed by bet hash, released by 2-of-3 jury signatures. |
 | Shell | Electron | Phone-shaped desktop window. All P2P and AI work runs in a separate Node daemon. |
@@ -113,7 +113,7 @@ npm install --registry=https://registry.npmjs.org
 node scripts/fund-wallets.js       # generate wallets into .env
 # fund CREATOR + JOINER with Base Sepolia ETH, then:
 node scripts/deploy.js             # deploy USDT + escrow, mint test funds
-npm test                           # 37 tests (escrow tests need foundry's anvil)
+npm test                           # 38 tests (escrow tests need foundry's anvil)
 npm run demo                       # the full two-phone, three-juror demo
 ```
 
@@ -140,7 +140,7 @@ punt/
     juror/              grading prompts, football-data client, juror daemon
     app/                peer daemon, Electron shell, swipe UI
   scripts/              fund-wallets, deploy, demo, proofs
-  tests/                37 node:test specs (schema, feed, escrow, parse, verdicts)
+  tests/                38 node:test specs (schema, feed, escrow, parse, verdicts)
   proposals/            the three UI direction mocks
 ```
 

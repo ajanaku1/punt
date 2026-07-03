@@ -9,8 +9,11 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { loadModel, completion, LLAMA_3_2_1B_INST_Q4_0 } from "@qvac/sdk";
 
-const JUDGE_GGUF = join(homedir(), ".qvac", "models", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
-const JUDGE_URL = "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
+// Served from the Ollama registry — the HF CDN is unreachable from some networks.
+// Blob digest doubles as an integrity check.
+const JUDGE_GGUF = join(homedir(), ".qvac", "models", "qwen3-4b.gguf");
+const JUDGE_URL =
+  "https://registry.ollama.ai/v2/library/qwen3/blobs/sha256:3e4cb14174460404e7a233e531675303b2fbf7749c02f91864fe311ab6344e4f";
 
 export const MODELS = {
   // fast parse in the composer — latency matters, the user confirms the draft anyway
