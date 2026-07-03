@@ -39,6 +39,7 @@ contract Escrow {
         require(stake > 0, "zero stake");
         require(deadline > block.timestamp, "deadline passed");
         require(jurors[0] != address(0) && jurors[1] != address(0) && jurors[2] != address(0), "zero juror");
+        require(jurors[0] != jurors[1] && jurors[0] != jurors[2] && jurors[1] != jurors[2], "duplicate juror");
         pots[betId] = Pot(msg.sender, address(0), stake, deadline, false, jurors);
         require(usdt.transferFrom(msg.sender, address(this), stake), "stake transfer failed");
         emit Created(betId, msg.sender, stake, deadline);
@@ -89,7 +90,16 @@ contract Escrow {
         emit Settled(betId, winner, payout);
     }
 
+    /// @notice The jury set for a pot — the auto-getter for `pots` omits the array,
+    ///         and a joiner must verify the jury before staking.
+    function getJurors(bytes32 betId) external view returns (address[3] memory) {
+        require(pots[betId].creator != address(0), "no pot");
+        return pots[betId].jurors;
+    }
+
     /// @notice After the deadline with no verdict, return each side's stake.
+    ///         NOTE: a settle-eligible pot can also be refunded once the deadline passes,
+    ///         so clients must set deadlines with jury grace (match end + verdict window).
     function refund(bytes32 betId) external {
         Pot storage pot = pots[betId];
         require(pot.creator != address(0), "no pot");

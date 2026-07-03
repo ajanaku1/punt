@@ -167,3 +167,15 @@ test("settled pot cannot be refunded even after the deadline", async () => {
   await provider.send("evm_mine", []);
   await assert.rejects(escrow.refund(betId));
 });
+
+test("create rejects duplicate juror addresses", async () => {
+  const betId = newBetId();
+  const dup = [juror1.address, juror1.address, juror2.address];
+  await assert.rejects(escrow.connect(creator).create(betId, STAKE, dup, await futureDeadline()));
+});
+
+test("getJurors exposes the jury set for pre-join verification", async () => {
+  const betId = newBetId();
+  await (await escrow.connect(creator).create(betId, STAKE, jurors(), await futureDeadline())).wait();
+  assert.deepEqual([...(await escrow.getJurors(betId))], jurors());
+});
