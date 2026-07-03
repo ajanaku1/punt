@@ -2,7 +2,7 @@
 const API = new URLSearchParams(location.search).get("api") ?? "http://127.0.0.1:9701";
 
 const $ = (id) => document.getElementById(id);
-const state = { bets: [], me: null, skipped: new Set(), revisiting: false, busy: false, draft: null, tab: "home" };
+const state = { bets: [], me: null, skipped: new Set(), revisiting: false, busy: false, draft: null, tab: "home", dragging: false, deckSignature: "" };
 
 async function api(path, body) {
   const res = await fetch(API + path, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
@@ -85,9 +85,13 @@ function cardHtml(bet) {
 }
 
 function renderStack() {
+  if (state.dragging) return; // never yank the card out from under a finger
+  const deck = swipeable();
+  const signature = deck.slice(0, 2).map((b) => b.betId).join("|") + (state.revisiting ? "|r" : "");
+  if (signature === state.deckSignature && deck.length) return; // deck unchanged — leave the DOM alone
+  state.deckSignature = signature;
   const stack = $("stack");
   stack.querySelectorAll(".card").forEach((el) => el.remove());
-  const deck = swipeable();
 
   const skippedOpen = state.bets.filter((b) => !b.mine && !b.joinedByMe && b.potStatus === "open" && state.skipped.has(b.betId));
   const showEmpty = deck.length === 0;
@@ -129,7 +133,7 @@ function attachSwipe(el, bet) {
   let startX = 0, dx = 0, dragging = false;
   el.addEventListener("pointerdown", (e) => {
     if (state.busy) return;
-    dragging = true; startX = e.clientX; el.setPointerCapture(e.pointerId);
+    dragging = true; state.dragging = true; startX = e.clientX; el.setPointerCapture(e.pointerId);
   });
   el.addEventListener("pointermove", (e) => {
     if (!dragging) return;
@@ -139,7 +143,7 @@ function attachSwipe(el, bet) {
     el.querySelector(".verdict-stamp.pass").style.opacity = Math.max(0, -dx / 90);
   });
   el.addEventListener("pointerup", async () => {
-    dragging = false;
+    dragging = false; state.dragging = false;
     if (dx > 110) await commitSwipe(el, bet, true);
     else if (dx < -110) await commitSwipe(el, bet, false);
     else { el.style.transform = ""; el.querySelectorAll(".verdict-stamp").forEach((s) => (s.style.opacity = 0)); }

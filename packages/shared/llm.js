@@ -2,7 +2,34 @@
  * Local QVAC LLM — the only AI in Punt runs on this machine (track rule: no cloud).
  * cpu / gpu_layers:0 / ctx_size:4096 is the proven-good config for this hardware.
  */
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { createWriteStream, existsSync } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { loadModel, completion, LLAMA_3_2_1B_INST_Q4_0 } from "@qvac/sdk";
+
+const JUDGE_GGUF = join(homedir(), ".qvac", "models", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+const JUDGE_URL = "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
+
+export const MODELS = {
+  // fast parse in the composer — latency matters, the user confirms the draft anyway
+  parse: LLAMA_3_2_1B_INST_Q4_0,
+  // juror grading — accuracy is the product; a 1B flips verdicts on 2-1 scorelines.
+  // Loaded from a plain GGUF path (the SDK registry mislabels its Qwen 4B entry).
+  judge: JUDGE_GGUF,
+};
+
+/** Fetch the judge model once if missing (~2.4GB) so `npm run demo` works out of the box. */
+async function ensureJudgeModel(onProgress) {
+  if (existsSync(JUDGE_GGUF)) return;
+  onProgress?.(0);
+  const res = await fetch(JUDGE_URL);
+  if (!res.ok) throw new Error(`judge model download failed: ${res.status}`);
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(JUDGE_GGUF + ".part"));
+  const { rename } = await import("node:fs/promises");
+  await rename(JUDGE_GGUF + ".part", JUDGE_GGUF);
+}
 
 const BET_DRAFT_SCHEMA = {
   type: "object",
@@ -21,9 +48,12 @@ const BET_DRAFT_SCHEMA = {
 };
 
 /** Load the local model once; returns { run } where run(history, schema?) → completion text. */
-export async function startLocalLlm({ onProgress } = {}) {
+export async function startLocalLlm({ onProgress, model = MODELS.parse } = {}) {
+  if (model === MODELS.judge) await ensureJudgeModel(onProgress);
   const modelId = await loadModel({
-    modelSrc: LLAMA_3_2_1B_INST_Q4_0,
+    modelSrc: model,
+    ...(model === MODELS.judge ? { modelType: "llamacpp-completion" } : {}),
+
     modelConfig: { ctx_size: 4096, device: "cpu", gpu_layers: 0 },
     onProgress: (p) => onProgress?.(p.percentage),
   });

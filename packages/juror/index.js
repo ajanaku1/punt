@@ -12,7 +12,7 @@ import { ethers } from "ethers";
 import net from "node:net";
 import { createFeed } from "@punt/feed/feed.js";
 import { betHash } from "@punt/shared/bet.js";
-import { startLocalLlm } from "@punt/shared/llm.js";
+import { startLocalLlm, MODELS } from "@punt/shared/llm.js";
 import { signVerdict } from "@punt/shared/verdict.js";
 import { buildGradeHistory, extractGrade, GRADE_SCHEMA } from "./grade.js";
 import { footballData } from "./football.js";
@@ -51,7 +51,7 @@ const [host, port] = (process.env.PUNT_FEED_CONNECT ?? "127.0.0.1:9471").split("
 })();
 
 log("loading local model…");
-const llm = await startLocalLlm({ onProgress: () => {} });
+const llm = await startLocalLlm({ model: MODELS.judge, onProgress: () => {} });
 log(`ready — signing as ${wallet.address}`);
 
 async function gradeBet(bet, betId, pot) {
