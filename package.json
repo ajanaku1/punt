@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "P2P swipe-to-stake football bets — no bookmaker, no server, no oracle. Autobase feed + QVAC LLM jury + WDK USDT escrow.",
+  "description": "P2P swipe-to-stake football bets \u2014 no bookmaker, no server, no oracle. Autobase feed + QVAC LLM jury + WDK USDT escrow.",
   "license": "MIT",
   "workspaces": [
     "packages/shared",
@@ -25,7 +25,11 @@
     "juror": "node packages/juror/index.js",
     "deploy-contracts": "node scripts/deploy.js",
     "fund-wallets": "node scripts/fund-wallets.js",
-    "demo": "bash scripts/demo.sh"
+    "demo": "bash scripts/demo.sh",
+    "peer:creator": "PUNT_ROLE=CREATOR PUNT_UI_PORT=9701 PUNT_FEED_LISTEN=9471 node packages/app/peer.js",
+    "peer:joiner": "PUNT_ROLE=JOINER PUNT_UI_PORT=9702 PUNT_FEED_CONNECT=127.0.0.1:9471 node packages/app/peer.js",
+    "app:creator": "PUNT_ROLE=CREATOR PUNT_UI_PORT=9701 electron packages/app/main.cjs",
+    "app:joiner": "PUNT_ROLE=JOINER PUNT_UI_PORT=9702 electron packages/app/main.cjs"
   },
   "dependencies": {
     "@qvac/sdk": "^0.13.5",
@@ -33,10 +37,11 @@
     "@tetherto/wdk-wallet-evm": "^1.0.0-beta.13",
     "autobase": "^7.28.1",
     "corestore": "^7.11.0",
-    "hyperswarm": "^4.17.0",
-    "hypercore-crypto": "^3.7.0"
+    "hypercore-crypto": "^3.7.0",
+    "hyperswarm": "^4.17.0"
   },
   "devDependencies": {
+    "electron": "^43.0.0",
     "ethers": "^6.13.0",
     "solc": "^0.8.26"
   }

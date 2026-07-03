@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' http://127.0.0.1:*; style-src 'unsafe-inline'; script-src 'self'">
+<title>Punt</title>
+<style>
+  /* Broadcast direction — studio navy, electric lime, scoreboard chrome. */
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+  :root {
+    --bg: #090c12; --surface: #0f141d; --elevated: #171e2a;
+    --text: #eef1f6; --body: #b4bcc9; --muted: #5d6674;
+    --lime: #c8f03c; --lime-dim: #8fae26; --amber: #eab308; --line: rgba(255,255,255,.05);
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 "Helvetica Neue", Arial, sans-serif;
+    display: flex; flex-direction: column;
+  }
+
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px 12px; }
+  .logo { font-weight: 800; font-size: 20px; font-style: italic; }
+  .logo i { color: var(--lime); font-style: italic; }
+  .wallet {
+    font-size: 13px; color: var(--body); background: var(--surface); padding: 7px 14px;
+    border-top: 1px solid rgba(255,255,255,.06); font-variant-numeric: tabular-nums;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  }
+  .wallet b { color: var(--lime); }
+
+  .ticker {
+    background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    font-size: 11px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase;
+    padding: 6px 18px; white-space: nowrap; overflow: hidden;
+  }
+  .ticker b { color: var(--lime-dim); }
+
+  /* card stack */
+  .stack { flex: 1; position: relative; padding: 18px 16px 0; overflow: hidden; }
+  .empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px;
+    align-items: center; justify-content: center; color: var(--muted); text-align: center; padding: 0 40px;
+  }
+  .empty b { color: var(--body); font-weight: 600; }
+  .card {
+    position: absolute; inset: 18px 16px auto; height: calc(100% - 40px);
+    background: linear-gradient(160deg, var(--elevated), var(--surface) 55%);
+    clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+    border-top: 1px solid rgba(255,255,255,.07);
+    padding: 22px 20px 18px; display: flex; flex-direction: column;
+    box-shadow: 0 18px 44px rgba(0,0,0,.55), 0 3px 8px rgba(0,0,0,.35);
+    touch-action: none; cursor: grab;
+  }
+  .card.behind { transform: rotate(-2deg) scale(.97); opacity: .45; pointer-events: none; }
+  .card.flying { transition: transform 300ms cubic-bezier(.2,0,0,1), opacity 300ms; }
+  .comp-tag {
+    display: inline-block; background: var(--lime); color: #101502; width: fit-content;
+    font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+    padding: 4px 10px; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  }
+  .comp-tag.matched { background: var(--amber); }
+  .scoreline { margin-top: 16px; display: flex; align-items: center; gap: 12px; }
+  .team {
+    flex: 1; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 12px 8px; text-align: center; font-weight: 800; font-size: 16px;
+    letter-spacing: .02em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .vs { color: var(--muted); font-size: 12px; letter-spacing: .1em; }
+  .kick { text-align: center; color: var(--muted); font-size: 12px; margin-top: 8px; letter-spacing: .08em; }
+  .claim { margin-top: 18px; font-size: 20px; line-height: 1.32; font-weight: 700; overflow: hidden; }
+  .claim em { color: var(--lime); font-style: normal; }
+  .odds-strip { margin-top: auto; display: flex; gap: 10px; }
+  .chip { flex: 1; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 12px; }
+  .chip .k { font-size: 10px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .chip .v { font-size: 19px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .chip .v.lime { color: var(--lime); }
+  .chip .v.small { font-size: 13px; line-height: 1.3; font-weight: 700; }
+  .byline { margin-top: 12px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .verdict-stamp {
+    position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%) rotate(-8deg);
+    font-size: 34px; font-weight: 800; letter-spacing: .1em; opacity: 0; pointer-events: none;
+  }
+  .verdict-stamp.take { color: var(--lime); }
+  .verdict-stamp.pass { color: #e2564a; }
+
+  .hints { display: flex; justify-content: space-between; padding: 14px 28px; font-size: 13px; color: var(--muted); }
+  .hints .take { color: var(--lime); font-weight: 700; }
+
+  .fab {
+    position: absolute; right: 22px; bottom: 76px; width: 54px; height: 54px;
+    background: var(--lime); color: #101502; font-size: 30px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+    box-shadow: 0 10px 30px rgba(200,240,60,.25);
+  }
+  .fab:active { transform: scale(.96); }
+
+  /* composer overlay */
+  .composer {
+    position: absolute; inset: 0; background: var(--bg); padding: 20px 18px;
+    display: none; flex-direction: column; z-index: 10;
+  }
+  .composer.open { display: flex; }
+  .lower-third {
+    background: var(--lime); color: #101502; width: fit-content;
+    font-weight: 800; font-size: 22px; font-style: italic; padding: 5px 15px 5px 11px;
+    clip-path: polygon(6px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+  .sub { color: var(--body); margin-top: 10px; font-size: 14px; }
+  textarea {
+    margin-top: 16px; background: var(--surface); border: none; outline: none;
+    border-top: 1px solid rgba(255,255,255,.07); color: var(--text); resize: none;
+    clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    padding: 16px; font: 600 18px/1.42 "Helvetica Neue", Arial, sans-serif; height: 108px;
+  }
+  .readout { margin-top: 14px; overflow-y: auto; max-height: 260px; }
+  .readout .row {
+    display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; font-size: 13px;
+    background: var(--surface); margin-bottom: 5px; border-left: 3px solid var(--lime-dim);
+  }
+  .readout .row.flag { border-left-color: var(--amber); }
+  .readout .k { color: var(--muted); flex-shrink: 0; }
+  .readout b { color: var(--text); text-align: right; }
+  .readout .row.flag b { color: var(--amber); }
+  .btn-row { margin-top: auto; display: flex; gap: 10px; padding-top: 14px; }
+  .btn {
+    flex: 1; text-align: center; font-weight: 800; font-size: 15px; padding: 15px;
+    cursor: pointer; letter-spacing: .04em;
+  }
+  .btn.primary {
+    background: var(--lime); color: #101502; font-style: italic;
+    clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+    box-shadow: 0 10px 30px rgba(200,240,60,.2);
+  }
+  .btn.primary:active { transform: scale(.97); }
+  .btn.primary[disabled] { opacity: .4; pointer-events: none; }
+  .btn.ghost { background: var(--surface); color: var(--body); border-top: 1px solid var(--line); }
+  .note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .note.err { color: #e2564a; }
+
+  /* toast */
+  .toast {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    background: var(--elevated); border-top: 1px solid rgba(255,255,255,.08); color: var(--text);
+    padding: 10px 18px; font-size: 13px; z-index: 20; display: none; white-space: nowrap;
+    box-shadow: 0 10px 26px rgba(0,0,0,.5);
+  }
+  .spinner { display: inline-block; animation: spin 900ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="logo">PUNT<i>/</i></div>
+    <div class="wallet">◈ <b id="usdt">—</b> USDT</div>
+  </div>
+  <div class="ticker" id="ticker">CONNECTING TO PEERS…</div>
+  <div class="stack" id="stack">
+    <div class="empty" id="empty"><b>Nothing to swipe yet.</b><span>When a mate posts a bet, it lands here. Or call your own shot with +.</span></div>
+  </div>
+  <div class="hints"><span>← pass</span><span class="take">match the stake →</span></div>
+  <div class="fab" id="fab">+</div>
+
+  <div class="composer" id="composer">
+    <div class="lower-third">YOUR CALL</div>
+    <div class="sub">Type it how you'd shout it. Your on-device AI drafts the terms — nothing leaves this machine until you post.</div>
+    <textarea id="say" placeholder="e.g. England keep a clean sheet against Ghana on Sunday, tenner on it"></textarea>
+    <div class="readout" id="readout"></div>
+    <div class="btn-row">
+      <div class="btn ghost" id="cancel">BACK</div>
+      <div class="btn primary" id="go" disabled>READ MY BET</div>
+    </div>
+    <div class="note" id="note">The AI runs right here — first read can take a few seconds.</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

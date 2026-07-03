@@ -31,6 +31,7 @@ export async function createFeed({ storage, key = null }) {
 
   return {
     key: base.key,
+    localKey: base.local.key,
     base,
     replicate: (isInitiatorOrStream) => base.replicate(isInitiatorOrStream),
     postBet: (bet) => base.append(bet, { optimistic: true }),
