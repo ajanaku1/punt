@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Punt — Option C: Broadcast</title>
+<style>
+  /* OPTION C — BROADCAST. Match-graphics package: deep navy studio dark, one
+     electric lime accent, scoreboard chrome, angled lower-third cards, ticker.
+     Swiping feels like flicking through live match graphics. */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #090c12; --surface: #0f141d; --elevated: #171e2a;
+    --text: #eef1f6; --body: #b4bcc9; --muted: #5d6674;
+    --lime: #c8f03c; --lime-dim: #8fae26; --line: rgba(255,255,255,.05);
+  }
+  body {
+    background: #05070b; color: var(--text);
+    font: 17px/1.55 "Helvetica Neue", Arial, sans-serif;
+    display: flex; gap: 64px; justify-content: center; align-items: flex-start;
+    padding: 56px 32px; min-height: 100vh;
+  }
+  .phone {
+    width: 390px; height: 760px; background: var(--bg);
+    border-radius: 40px; border: 1px solid #1c2330;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+    overflow: hidden; position: relative; display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .screen-label {
+    position: absolute; top: -36px; left: 8px; color: #626b7a;
+    font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .wrap { position: relative; }
+
+  .bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 20px 14px;
+  }
+  .logo { font-weight: 800; font-size: 20px; letter-spacing: .02em; font-style: italic; }
+  .logo i { color: var(--lime); font-style: italic; }
+  .wallet {
+    font-size: 13px; color: var(--body); background: var(--surface);
+    padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.06);
+    clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+    font-variant-numeric: tabular-nums;
+  }
+  .wallet b { color: var(--lime); }
+
+  /* ticker */
+  .ticker {
+    background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    font-size: 12px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase;
+    padding: 7px 20px; white-space: nowrap; overflow: hidden;
+  }
+  .ticker b { color: var(--lime-dim); }
+
+  .stack { flex: 1; position: relative; padding: 22px 18px 0; }
+  .card-behind {
+    position: absolute; inset: 30px 26px auto; height: 470px;
+    background: var(--elevated); opacity: .45; transform: rotate(-2deg);
+    clip-path: polygon(0 14px, 14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+  }
+  .card {
+    position: relative; background: linear-gradient(160deg, var(--elevated), var(--surface) 55%);
+    clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+    border-top: 1px solid rgba(255,255,255,.07);
+    padding: 26px 22px 22px; height: 486px; display: flex; flex-direction: column;
+    box-shadow: 0 18px 44px rgba(0,0,0,.55), 0 3px 8px rgba(0,0,0,.35);
+  }
+  .comp-tag {
+    display: inline-block; background: var(--lime); color: #101502;
+    font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+    padding: 4px 10px; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+    width: fit-content;
+  }
+  .scoreline {
+    margin-top: 20px; display: flex; align-items: center; gap: 14px;
+  }
+  .team {
+    flex: 1; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 14px 12px; text-align: center; font-weight: 800; font-size: 18px;
+    letter-spacing: .02em; text-transform: uppercase;
+  }
+  .vs { color: var(--muted); font-size: 13px; letter-spacing: .1em; }
+  .kick { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; letter-spacing: .08em; }
+  .claim {
+    margin-top: 22px; font-size: 22px; line-height: 1.32; font-weight: 700;
+  }
+  .claim em { color: var(--lime); font-style: normal; }
+  .odds-strip {
+    margin-top: auto; display: flex; gap: 12px; align-items: stretch;
+  }
+  .chip {
+    flex: 1; background: var(--surface); border-top: 1px solid var(--line); padding: 12px 14px;
+  }
+  .chip .k { font-size: 11px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .chip .v { font-size: 21px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .chip .v.lime { color: var(--lime); }
+  .byline { margin-top: 14px; display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  .swipe-hints { display: flex; justify-content: space-between; padding: 18px 30px 26px; font-size: 14px; color: var(--muted); }
+  .swipe-hints .take { color: var(--lime); font-weight: 700; }
+
+  /* composer */
+  .composer { flex: 1; padding: 24px 20px; display: flex; flex-direction: column; }
+  .lower-third {
+    background: var(--lime); color: #101502; width: fit-content;
+    font-weight: 800; font-size: 24px; letter-spacing: .01em; font-style: italic;
+    padding: 6px 16px 6px 12px; clip-path: polygon(6px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  }
+  .sub { color: var(--body); margin-top: 12px; font-size: 16px; }
+  .say {
+    margin-top: 20px; background: var(--surface); border-top: 1px solid rgba(255,255,255,.07);
+    clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    padding: 20px; font-size: 20px; line-height: 1.42; min-height: 116px; font-weight: 600;
+    box-shadow: 0 12px 30px rgba(0,0,0,.45);
+  }
+  .say .caret { color: var(--lime); }
+  .readout { margin-top: 18px; }
+  .readout .row {
+    display: flex; justify-content: space-between; padding: 10px 14px; font-size: 15px;
+    background: var(--surface); margin-bottom: 6px; border-left: 3px solid var(--lime-dim);
+  }
+  .readout .row.flag { border-left-color: #eab308; }
+  .readout .k { color: var(--muted); }
+  .readout b { color: var(--text); }
+  .readout .row.flag b { color: #eab308; }
+  .cta {
+    margin-top: auto; background: var(--lime); color: #101502; text-align: center;
+    font-weight: 800; font-size: 17px; letter-spacing: .04em; font-style: italic;
+    padding: 18px; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+    box-shadow: 0 10px 30px rgba(200,240,60,.2);
+  }
+  .note { text-align: center; color: var(--muted); font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="screen-label">Screen 1 — the feed</div>
+  <div class="phone">
+    <div class="bar">
+      <div class="logo">PUNT<i>/</i></div>
+      <div class="wallet">◈ <b>94.20</b> USDT</div>
+    </div>
+    <div class="ticker">LIVE FEED · <b>7 OPEN BETS</b> · 12 PEERS ON · LAST SETTLED: NGA–ARG “OVER 2.5” → PAID 12 USDT</div>
+    <div class="stack">
+      <div class="card-behind"></div>
+      <div class="card">
+        <span class="comp-tag">World Cup · Group C</span>
+        <div class="scoreline">
+          <div class="team">FRA</div>
+          <div class="vs">VS</div>
+          <div class="team">BRA</div>
+        </div>
+        <div class="kick">SAT 19:00 UTC · GROUP C</div>
+        <div class="claim">“<em>Mbappé scores 2+.</em> He's been unplayable all month.”</div>
+        <div class="odds-strip">
+          <div class="chip"><div class="k">Stake each</div><div class="v lime">5.00</div></div>
+          <div class="chip"><div class="k">Pot pays</div><div class="v">10.00</div></div>
+          <div class="chip"><div class="k">Settles by</div><div class="v" style="font-size:15px;line-height:1.3">AI jury<br>3 peers</div></div>
+        </div>
+        <div class="byline"><span>posted by kofi.eth</span><span>2 min ago</span></div>
+      </div>
+    </div>
+    <div class="swipe-hints"><span>← pass</span><span class="take">match the stake →</span></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="screen-label">Screen 2 — the composer</div>
+  <div class="phone">
+    <div class="bar">
+      <div class="logo">PUNT<i>/</i></div>
+      <div class="wallet">◈ <b>94.20</b> USDT</div>
+    </div>
+    <div class="ticker">NEW BET · GOES OUT TO <b>ALL PEERS</b> · NO BOOKIE · NO SERVER</div>
+    <div class="composer">
+      <div class="lower-third">YOUR CALL</div>
+      <div class="sub">Type it how you'd shout it. Your on-device AI drafts the terms — nothing leaves this machine until you post.</div>
+      <div class="say">England keep a clean sheet against Ghana on Sunday, tenner on it<span class="caret">▎</span></div>
+      <div class="readout">
+        <div class="row"><span class="k">MATCH</span><b>England v Ghana · Sun 17:00</b></div>
+        <div class="row"><span class="k">MARKET</span><b>Clean sheet — yes</b></div>
+        <div class="row flag"><span class="k">STAKE ⚑</span><b>“tenner” → 10 USDT — confirm?</b></div>
+      </div>
+      <div class="cta">SEND IT TO THE FEED</div>
+      <div class="note">Matched stakes lock in escrow. A jury of peers' AIs pays the winner.</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
