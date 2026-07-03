@@ -21,7 +21,13 @@ export function footballData(apiKey, fetchImpl = fetch, base = BASE) {
     /** Finished match for (home, away) within ±1 day of kickoff, or null. */
     async findFinished(home, away, kickoffIso) {
       const url = `${base}/matches?status=FINISHED&dateFrom=${day(kickoffIso, -1)}&dateTo=${day(kickoffIso, 1)}`;
-      const res = await fetchImpl(url, { headers: { "X-Auth-Token": apiKey } });
+      let res = await fetchImpl(url, { headers: { "X-Auth-Token": apiKey } });
+      if (res.status === 429) {
+        // free tier throttles per minute — the wait is in the response headers
+        const wait = Number(res.headers?.get?.("X-RequestCounter-Reset") ?? 60);
+        await new Promise((r) => setTimeout(r, (wait + 1) * 1000));
+        res = await fetchImpl(url, { headers: { "X-Auth-Token": apiKey } });
+      }
       if (!res.ok) throw new Error(`football-data ${res.status}`);
       const { matches = [] } = await res.json();
       const hit = matches.find(
