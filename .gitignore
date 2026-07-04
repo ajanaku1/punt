@@ -31,9 +31,8 @@ cache/
 .claude/
 .DS_Store
 
-# Video files (renders + screen recordings) — never commit
+# Media + the video production project
 *.mp4
 *.webm
 *.mov
-video/out/
-video/node_modules/
+video/

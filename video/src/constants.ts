@@ -68,15 +68,20 @@ export const AUDIO_FILES: Record<keyof typeof SCENE_DURATIONS, string> = {
   close: "audio/close.mp3",
 };
 
-// REAL juror output — copied verbatim from the live run logs (real-only principle).
-// Populated from the Portugal v Croatia settlement run.
+// REAL juror output — copied verbatim from the live Portugal v Croatia
+// settlement run (truncated mid-sentence only). Real-only principle.
 export const JURY_TERMINAL: { text: string; color: "prompt" | "text" | "green" | "yellow" | "red" | "blue" | "purple" }[] = [
-  { text: "$ npm run demo    # three jurors, each its own machine-local model", color: "prompt" },
+  { text: "$ npm run demo    # three jurors, each with its own on-device model", color: "prompt" },
   { text: "[juror 1] loading local model…", color: "text" },
   { text: "[juror 2] loading local model…", color: "text" },
   { text: "[juror 3] loading local model…", color: "text" },
-  { text: "[juror 1] fetching official result: Portugal v Croatia", color: "blue" },
-  // verdict lines injected from the live run — see fillJuryLines note in scenes/Jury.tsx
+  { text: "[juror 2] VERDICT on f317e99eb027…: creator WINS — The official final score at full time was", color: "green" },
+  { text: "          Portugal 2, Croatia 1. Since the official result shows Portugal winning 2-1, the", color: "green" },
+  { text: "          condition held true.", color: "green" },
+  { text: "[juror 1] VERDICT on f317e99eb027…: creator WINS — Portugal 2, Croatia 1 at full time.", color: "green" },
+  { text: "[juror 3] VERDICT on f317e99eb027…: creator WINS — Portugal 2, Croatia 1 at full time.", color: "green" },
+  { text: "[CREATOR] jury majority says we won f317e99eb027… — settling", color: "yellow" },
+  { text: "[CREATOR] pot released — the winner's USDT is home", color: "yellow" },
 ];
 
 export const PILLARS = [
