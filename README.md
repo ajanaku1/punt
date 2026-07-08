@@ -116,7 +116,7 @@ A bet is appended optimistically to the shared Autobase. Every indexer validates
 ## Running Locally
 
 ```bash
-git clone <repo-url> punt && cd punt
+git clone https://github.com/ajanaku1/punt.git && cd punt
 npm install --registry=https://registry.npmjs.org
 node scripts/fund-wallets.js       # generate wallets into .env
 # fund CREATOR + JOINER with Base Sepolia ETH, then:
@@ -149,7 +149,7 @@ punt/
     app/                peer daemon, Electron shell, swipe UI
   scripts/              fund-wallets, deploy, demo, proofs
   tests/                38 node:test specs (schema, feed, escrow, parse, verdicts)
-  proposals/            the three UI direction mocks
+  docs/images/          UI screenshots for the README
 ```
 
 ---
