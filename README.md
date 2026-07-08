@@ -9,6 +9,12 @@ Post a football bet in plain English, let a friend swipe right to match your sta
 
 ![The swipe feed](docs/images/home.png)
 
+## Live Demo
+
+**[https://punt-ten.vercel.app](https://punt-ten.vercel.app)**
+
+Marketing site for the product. The app itself is a local Electron peer demo (see Running Locally).
+
 ## Screenshots
 
 | Home | Composer | History | Profile |

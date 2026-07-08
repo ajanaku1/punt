@@ -30,6 +30,7 @@ cache/
 # Local tooling / editor
 .claude/
 .DS_Store
+.vercel
 
 # Media + the video production project
 *.mp4

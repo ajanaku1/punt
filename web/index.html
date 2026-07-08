@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Punt — peer-to-peer football pots. No bookie. No server.</title>
+  <meta name="description" content="Post a football bet in plain English. A mate swipes to match your stake. On-device AI jurors settle the pot. P2P Autobase feed, WDK wallets, USDT escrow on Base Sepolia.">
+  <meta name="theme-color" content="#090c12">
+  <link rel="canonical" href="https://punt-ten.vercel.app/">
+  <meta property="og:title" content="Punt — no bookie, no server">
+  <meta property="og:description" content="Swipe-to-stake football pots between friends. Peer feed, self-custody, on-device AI jury.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/images/home.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <div class="ticker" role="status">
+    <div class="ticker-track">
+      <span>NO BOOKIE · NO SERVER · NO HOUSE CUT · PEER-TO-PEER POTS · ON-DEVICE AI JURY · SELF-CUSTODY USDT · PEARS · QVAC · WDK · BASE SEPOLIA ·&nbsp;</span>
+      <span>NO BOOKIE · NO SERVER · NO HOUSE CUT · PEER-TO-PEER POTS · ON-DEVICE AI JURY · SELF-CUSTODY USDT · PEARS · QVAC · WDK · BASE SEPOLIA ·&nbsp;</span>
+    </div>
+  </div>
+
+  <header class="nav">
+    <a class="logo" href="#">PUNT<span>/</span></a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#stack">Stack</a>
+      <a href="#shots">Product</a>
+      <a href="https://github.com/ajanaku1/punt" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <a class="btn btn-primary nav-cta" href="https://github.com/ajanaku1/punt" target="_blank" rel="noopener">Clone the repo</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">
+          <span class="comp-tag">TETHER DEVELOPERS CUP</span>
+          <span class="live-dot" aria-hidden="true"></span>
+          <span class="eyebrow-meta">Pears · QVAC · WDK</span>
+        </p>
+        <h1>
+          Football pots<br>
+          between mates.<br>
+          <em>No company in the middle.</em>
+        </h1>
+        <p class="lede">
+          Type a bet the way you’d shout it in the group chat. A friend swipes right to match your stake with real testnet USDT. Three peers grade the result on their own machines. Winner takes the pot.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/ajanaku1/punt#running-locally" target="_blank" rel="noopener">Run the demo</a>
+          <a class="btn btn-ghost" href="#how">See the journey</a>
+        </div>
+        <ul class="hero-stats" aria-label="Highlights">
+          <li><strong>0</strong><span>servers hosting markets</span></li>
+          <li><strong>2-of-3</strong><span>on-device jury settle</span></li>
+          <li><strong>38</strong><span>tests green</span></li>
+        </ul>
+      </div>
+
+      <div class="hero-stage" aria-hidden="true">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="phone-bar">
+              <div class="logo phone-logo">PUNT<span>/</span></div>
+              <div class="wallet-chip">◈ <b>42.00</b> USDT</div>
+            </div>
+            <div class="phone-ticker">LIVE FEED · <b>1 OPEN</b> · AI READY · NO BOOKIE</div>
+            <div class="card-mock">
+              <span class="comp-tag">OPEN BET</span>
+              <div class="scoreline">
+                <div class="team">MOROCCO</div>
+                <div class="vs">VS</div>
+                <div class="team">ECUADOR</div>
+              </div>
+              <div class="kick">SUN 16:00 · RESULT</div>
+              <div class="claim">“<em>Morocco win.</em>”</div>
+              <div class="odds-strip">
+                <div class="chip"><div class="k">Stake each</div><div class="v lime">4.00</div></div>
+                <div class="chip"><div class="k">Pot pays</div><div class="v">8.00</div></div>
+                <div class="chip"><div class="k">Settles by</div><div class="v small">AI jury<br>3 peers</div></div>
+              </div>
+              <div class="byline"><span>peer 0x7a3f…</span><span>just now</span></div>
+            </div>
+            <div class="phone-hints"><span>← pass</span><span class="take">match the stake →</span></div>
+          </div>
+        </div>
+        <div class="glow"></div>
+      </div>
+    </section>
+
+    <section class="band" id="how">
+      <div class="section-head">
+        <span class="comp-tag">THE JOURNEY</span>
+        <h2>Four moves. No backend.</h2>
+        <p>The whole product is what you can film: two phones, three juror terminals, one escrow pot.</p>
+      </div>
+      <ol class="steps">
+        <li class="step">
+          <span class="step-num">01</span>
+          <h3>Call your shot</h3>
+          <p>Type plain English. An on-device QVAC model structures the terms and flags anything it guessed. Your stake locks into escrow from your own WDK wallet.</p>
+        </li>
+        <li class="step">
+          <span class="step-num">02</span>
+          <h3>It lands on their phone</h3>
+          <p>The bet gossips over an Autobase optimistic feed. No API server. No push provider. Their swipe stack updates because the feed replicated.</p>
+        </li>
+        <li class="step">
+          <span class="step-num">03</span>
+          <h3>Swipe right to stake</h3>
+          <p>They match the stake with testnet USDT. The pot now holds both sides on Base Sepolia. Junk bets never get this far: every peer validates the schema first.</p>
+        </li>
+        <li class="step">
+          <span class="step-num">04</span>
+          <h3>Jury pays the winner</h3>
+          <p>Three peers each run a local model against football-data.org results. Two matching signatures settle the contract. The winner’s balance rises by the whole pot.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="band band-tight" id="stack">
+      <div class="section-head">
+        <span class="comp-tag">LOAD-BEARING</span>
+        <h2>Three sponsor stacks. None optional.</h2>
+        <p>If you could remove one without breaking the journey, it wouldn’t ship.</p>
+      </div>
+      <div class="stack-grid">
+        <article class="stack-card">
+          <div class="stack-label">Pears</div>
+          <h3>The feed is the network</h3>
+          <p>Optimistic multi-writer Autobase + Corestore. Remove it and there is no app, because there is no server to fall back to.</p>
+        </article>
+        <article class="stack-card">
+          <div class="stack-label">QVAC</div>
+          <h3>AI that never leaves the machine</h3>
+          <p>Llama 3.2 1B parses plain English. Qwen3 4B grades outcomes at temperature 0. No cloud AI on the critical path.</p>
+        </article>
+        <article class="stack-card">
+          <div class="stack-label">WDK</div>
+          <h3>Self-custody end to end</h3>
+          <p>Every stake movement is signed by the user’s WDK wallet. The escrow is the only thing that ever holds funds.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band" id="shots">
+      <div class="section-head">
+        <span class="comp-tag">PRODUCT</span>
+        <h2>Same chrome as the desktop app.</h2>
+        <p>Broadcast studio navy, electric lime, scoreboard cutouts. What you see here is what ships in Electron.</p>
+      </div>
+      <div class="gallery">
+        <figure class="shot">
+          <img src="images/home.png" alt="Punt home screen with swipeable bet card stack" width="390" height="844" loading="lazy">
+          <figcaption>Home · swipe to stake</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="images/composer.png" alt="Punt composer turning plain English into bet terms" width="390" height="844" loading="lazy">
+          <figcaption>Composer · plain English in</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="images/history.png" alt="Punt history of open matched and settled pots" width="390" height="844" loading="lazy">
+          <figcaption>History · pots and verdicts</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="images/profile.png" alt="Punt profile with wallet address and USDT balance" width="390" height="844" loading="lazy">
+          <figcaption>Profile · WDK wallet strip</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="band band-tight">
+      <div class="section-head">
+        <span class="comp-tag">TRUST MODEL</span>
+        <h2>What is honest. What is disclosed.</h2>
+      </div>
+      <div class="trust-grid">
+        <div class="trust-card">
+          <h3>Honest-majority jury</h3>
+          <p>Settlement needs two of three independent on-device verdicts. Collusion resistance beyond that is out of scope for this prototype.</p>
+        </div>
+        <div class="trust-card">
+          <h3>Third-party services</h3>
+          <p>football-data.org for official match results. A Base Sepolia RPC for chain reads and writes. Everything else, including all AI inference, runs on the peers.</p>
+        </div>
+        <div class="trust-card">
+          <h3>Not a platform</h3>
+          <p>Fixed-stake two-sided pots between friends. No odds-making. No house edge. Framing is peer-to-peer pools, never a betting company.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="lower-third">YOUR CALL</div>
+      <h2>Run two phones. Three jurors. One pot.</h2>
+      <p>Node 22+, Base Sepolia ETH for gas, a free football-data.org key. The demo script opens everything.</p>
+      <pre class="code" tabindex="0"><code>git clone https://github.com/ajanaku1/punt.git
+cd punt &amp;&amp; npm install --registry=https://registry.npmjs.org
+node scripts/fund-wallets.js
+node scripts/deploy.js
+npm run demo</code></pre>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/ajanaku1/punt" target="_blank" rel="noopener">Open on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/ajanaku1/punt#testing-the-app" target="_blank" rel="noopener">Full walkthrough</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="logo">PUNT<span>/</span></div>
+    <p>MIT · Built for the Tether Developers Cup · <a href="https://github.com/ajanaku1/punt" target="_blank" rel="noopener">Source</a></p>
+  </footer>
+</body>
+</html>
