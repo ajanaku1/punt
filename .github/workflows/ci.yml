@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # anvil — the escrow tests run against a real local EVM node
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        run: npm install --registry=https://registry.npmjs.org
+
+      - name: Compile contracts (no secrets, no RPC)
+        run: npm run compile
+
+      - name: Tests + coverage
+        run: npm run coverage
+
+      - name: Upload coverage (lcov)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+
+      # Activates the coverage badge once the repo is connected to Codecov
+      # (free for public repos). Never fails the build.
+      - name: Upload coverage to Codecov
+        if: always()
+        continue-on-error: true
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
