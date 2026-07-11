@@ -1,21 +1,30 @@
 # Punt — voiceover script (per scene)
 
-Voice: Gemini `Charon`, sped to 1.12x. Pace target ~140 wpm.
+Voice: edge-tts `en-US-AndrewMultilingualNeural`, rate -6% (calm, consumer pace).
+Story-first: open on the human moment, reveal the tech as the magic. Names
+Pears/QVAC/WDK and the on-chain/on-device proof for judges, framed so anyone gets it.
+Scene order: hook, noserver, composer, dht, swipe, jury, explorer, close.
 
 ## hook
-Every betting app is a company. It hosts the markets, settles them, and takes a cut. Punt is a football bet between friends, where the company can't exist.
+You and your mates are certain about the match, so you put a few quid on it. But every betting app is a company. It holds your money, sets the odds, decides who won, and takes a cut. Punt is the version where that company doesn't exist.
 
 ## noserver
-There's no server anywhere. Bets travel peer to peer on Tether's Pears stack. Stakes live in self-custodial W-D-K wallets. And every drop of AI runs on your own machine with QVAC. No cloud.
+No bookie. No server. No house. Punt is a bet between friends, running on three parts of Tether's stack, and each one does real work. Your phones talk to each other directly with Pears. The AI runs on your own device with QVAC. And your money stays in your own wallet with WDK.
 
 ## composer
-I type my bet the way I'd say it in the group chat. The model on my laptop turns it into terms a jury can grade, and flags anything it had to guess. When I post, my USDT locks into an on-chain escrow.
+You type your bet the way you'd say it in the group chat. Or just tap the mic and say it out loud. Everything runs on your own laptop: the speech, and the model that turns your words into something a jury can settle, flagging anything it had to guess. Hit post, and your stake locks into an escrow you can see on-chain.
+
+## dht
+Your bet goes straight to your friends' devices. They find each other directly, with no server in the middle and nothing to shut down. And the feed is encrypted, so only your group can read the pots.
 
 ## swipe
-The bet gossips to every peer over an Autobase feed. My friend swipes right, her wallet matches my stake, and the pot holds both sides on-chain. Junk bets never get this far — every peer validates the schema before acknowledging a single byte.
+Your mate swipes right to take the other side. Her wallet matches your stake, and the pot now holds both sides on-chain. Cheats and junk never make it in, because the feed only trusts a bet that's really signed by the person who sent it.
 
 ## jury
-Settlement needs no oracle. Three peers each fetch the official result and grade the bet with their own on-device model, at temperature zero. Each one signs its verdict, and two matching signatures release the pot — the contract checks the jury's cryptography itself. Portugal beat Croatia two one, the jury agrees, and the winner takes the pot.
+Then the match ends, and here's the real question. Who decides who won? Not a company. Three of your peers each grade the result with an AI running on their own machine, and sign the outcome. When two of them agree, the pot pays out. No oracle. No referee you're forced to trust.
+
+## explorer
+And none of it happens in the dark. Every settle lands on Base Sepolia, out in the open, for anyone to check. The contract itself confirms the jury before a single coin moves.
 
 ## close
-Posted in plain English. Matched with a swipe. Settled by machines that answer to no one. Pears moves the bets, QVAC is the brain, W-D-K holds the money. That's Punt.
+No bookie. No server. No oracle. Just you, your friends, and a bet that settles itself. Pears carries it, QVAC is the brain, WDK holds the money. That's Punt.

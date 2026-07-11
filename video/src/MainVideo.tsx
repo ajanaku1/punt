@@ -7,9 +7,12 @@ import { Subtitles } from "./Subtitles";
 import { Hook } from "./scenes/Hook";
 import { NoServer } from "./scenes/NoServer";
 import { Composer } from "./scenes/Composer";
+import { DhtPeers } from "./scenes/DhtPeers";
 import { Swipe } from "./scenes/Swipe";
 import { Jury } from "./scenes/Jury";
+import { Explorer } from "./scenes/Explorer";
 import { Close } from "./scenes/Close";
+import { Watermark } from "./components/Watermark";
 
 const SceneAudio: React.FC<{ src: string; audioDuration: number }> = ({ src, audioDuration }) => (
   <Audio
@@ -30,8 +33,10 @@ const scenes = [
   { id: "hook" as const, Component: Hook },
   { id: "noserver" as const, Component: NoServer },
   { id: "composer" as const, Component: Composer },
+  { id: "dht" as const, Component: DhtPeers },
   { id: "swipe" as const, Component: Swipe },
   { id: "jury" as const, Component: Jury },
+  { id: "explorer" as const, Component: Explorer },
   { id: "close" as const, Component: Close },
 ];
 
@@ -56,6 +61,7 @@ export const MainVideo: React.FC = () => {
         })}
       </TransitionSeries>
       <Subtitles />
+      <Watermark />
     </AbsoluteFill>
   );
 };
