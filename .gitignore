@@ -46,3 +46,6 @@ plan.original.md
 # c8 coverage output
 coverage/
 .nyc_output/
+
+# hackathon submission artifact (local only)
+docs/submission-details.md
