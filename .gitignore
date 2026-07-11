@@ -37,3 +37,12 @@ cache/
 *.webm
 *.mov
 video/
+
+# archived original-build scaffolding (local only)
+Goal.original.md
+prompt.original.md
+plan.original.md
+
+# c8 coverage output
+coverage/
+.nyc_output/

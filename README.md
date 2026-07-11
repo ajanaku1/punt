@@ -5,7 +5,8 @@ Post a football bet in plain English, let a friend swipe right to match your sta
 [![Node](https://img.shields.io/badge/Node-25-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636?logo=solidity)](https://soliditylang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-38_passing-brightgreen)]()
+[![CI](https://github.com/ajanaku1/punt/actions/workflows/ci.yml/badge.svg)](https://github.com/ajanaku1/punt/actions/workflows/ci.yml)
+[![coverage](https://codecov.io/gh/ajanaku1/punt/branch/main/graph/badge.svg)](https://codecov.io/gh/ajanaku1/punt)
 
 ![The swipe feed](docs/images/home.png)
 
@@ -31,12 +32,14 @@ Every prediction app is a platform: a company hosts the markets, settles them, a
 
 ## Features
 
-- **Plain-English bets**: type "England keep a clean sheet against Ghana on Sunday, tenner on it" and a local LLM turns it into resolvable terms, flagging anything it had to guess.
+- **Plain-English bets, typed or spoken**: type "England keep a clean sheet against Ghana on Sunday, tenner on it", or tap the mic and say it. On-device Whisper transcribes, then a local LLM streams the resolvable terms into the composer as it writes them, flagging anything it had to guess.
 - **Swipe to stake**: the home screen is a card stack of open bets from every peer. Swipe right to match the stake with real testnet USDT. Swipe left to pass.
+- **Real peer discovery**: peers and jurors find each other on the Hyperswarm DHT from the feed's key. No server, no hardcoded address.
+- **Encrypted feed**: every block is encrypted with a group secret. Knowing where the group meets is not enough to read the pots.
 - **No bookmaker, no odds**: fixed-stake two-sided pots between friends. Winner takes the pot.
-- **AI jury settlement**: three peers grade the bet independently against official football-data.org results, each with their own on-device model at temperature 0. Two matching signed verdicts release the escrow.
-- **Spam defense**: the feed validates every bet before acknowledging it. Junk never reaches anyone's swipe stack.
-- **Self-custody throughout**: every stake movement is signed by the user's own WDK wallet. The escrow contract is the only thing that ever holds funds.
+- **AI jury settlement**: three peers grade the bet independently against official football-data.org results, each with their own on-device model at temperature 0. Each verdict is signed by a self-custodial WDK account, and two matching signatures release the escrow.
+- **Anti-spoofing feed**: the feed is a deterministic reducer. It drops junk before acknowledging a writer, and it accepts a bet only when its author key matches the peer that sent it.
+- **Self-custody throughout**: every signature in Punt is WDK-native, both the stake movements and the jury verdicts. Ethers only encodes calldata and reads views. The escrow contract is the only thing that ever holds funds.
 
 ---
 
@@ -44,15 +47,17 @@ Every prediction app is a platform: a company hosts the markets, settles them, a
 
 | Layer | Technology | Why it is load-bearing |
 |-------|-----------|------------------------|
-| Bet feed | Pears (Autobase + Corestore) | The feed is an optimistic multi-writer Autobase replicated between peers. Remove it and there is no app. |
-| AI | QVAC (`@qvac/sdk`): Llama 3.2 1B parses, Qwen3 4B judges, both on-device | Bet parsing and every juror verdict run locally. No cloud AI anywhere. |
-| Wallets | WDK (`@tetherto/wdk-wallet-evm`) | All stake custody and escrow calls go through self-custodial WDK wallets. |
+| Bet feed | Pears (Autobase + Corestore + Hyperswarm) | Peers discover on the DHT by the feed key and replicate an encrypted, optimistic multi-writer Autobase. The view is a deterministic reducer that binds each bet to its author, and only holders of the group secret can read it. Remove it and there is no app. |
+| AI | QVAC (`@qvac/sdk`): Llama 3.2 1B parses, Whisper base.en transcribes, Qwen3 4B judges, all on-device | Speech-to-bet, bet parsing (streamed token by token into the UI), and every juror verdict run locally. No cloud AI anywhere. Prove it with `npm run jury:demo`. |
+| Wallets | WDK (`@tetherto/wdk-wallet-evm`) | Every signature is WDK-native: stake custody (native `approve` + `sendTransaction`), escrow calls, and juror verdicts. Ethers only encodes calldata and reads chain state. |
 | Escrow | Solidity 0.8 on Base Sepolia | Fixed-stake pots keyed by bet hash, released by 2-of-3 jury signatures. |
 | Shell | Electron | Phone-shaped desktop window. All P2P and AI work runs in a separate Node daemon. |
 
 ---
 
 ## Testing the App
+
+Reviewing this for the cup? [Judge in 5 minutes](docs/judge-in-5-minutes.md) is a reproducible path with pass/fail gates, most of it with no wallet or funds.
 
 ### Part 1: setup
 
@@ -111,7 +116,7 @@ Both are deployed on Base Sepolia. Addresses are written to `.env` by the deploy
             +--- football-data.org -+          official results feed
 ```
 
-A bet is appended optimistically to the shared Autobase. Every indexer validates the schema before acknowledging the writer, so invalid bets never converge. Verdicts travel over the same feed as signed messages. The escrow verifies the jury signatures on-chain with `ecrecover`, so the contract itself is the final arbiter of who gets paid.
+Peers find each other on the Hyperswarm DHT using the feed's discovery key, so there is no address to configure. A bet is appended optimistically to the shared Autobase. The apply function is a deterministic reducer: it validates the schema, checks that the bet's author key matches the sending peer, and only then acknowledges the writer, so junk and impersonation never converge. Verdicts travel over the same feed as messages signed by each juror's WDK account. The escrow verifies those signatures on-chain with `ecrecover`, so the contract itself is the final arbiter of who gets paid.
 
 **Trust assumption**: settlement is honest-majority across the three jurors. Collusion resistance beyond that is out of scope for this prototype.
 
@@ -127,13 +132,15 @@ npm install --registry=https://registry.npmjs.org
 node scripts/fund-wallets.js       # generate wallets into .env
 # fund CREATOR + JOINER with Base Sepolia ETH, then:
 node scripts/deploy.js             # deploy USDT + escrow, mint test funds
-npm test                           # 38 tests (escrow tests need foundry's anvil)
+npm test                           # 49 tests (escrow tests need foundry's anvil)
 npm run demo                       # the full two-phone, three-juror demo
 ```
 
-Individual pieces:
+Proofs, each one command:
 
 ```bash
+npm run jury:demo                  # real Qwen3 4B grades tricky fixtures on-device
+npm run coverage                   # 49 tests with a coverage report
 node scripts/p2p-check.js          # two-process replication proof
 node scripts/junk-check.js         # spam rejection proof
 node scripts/join-check.js         # WDK wallets fund a pot on-chain
@@ -153,8 +160,9 @@ punt/
     feed/               the Autobase optimistic feed
     juror/              grading prompts, football-data client, juror daemon
     app/                peer daemon, Electron shell, swipe UI
-  scripts/              fund-wallets, deploy, demo, proofs
-  tests/                38 node:test specs (schema, feed, escrow, parse, verdicts)
+  scripts/              fund-wallets, deploy, demo, compile, jury-demo, proofs
+  tests/                49 node:test specs (schema, feed reducer + encryption, escrow, parse, verdicts, WDK signing, DHT wiring, multi-peer convergence)
+  .github/workflows/    CI: contract compile, tests, coverage
   docs/images/          UI screenshots for the README
 ```
 
