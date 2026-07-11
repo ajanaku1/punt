@@ -4,18 +4,25 @@
  * renderer is dumb chrome that talks to this over localhost JSON — no native
  * modules ever load inside Electron.
  *
- * Env: PUNT_ROLE=CREATOR|JOINER, PUNT_UI_PORT, and either PUNT_FEED_LISTEN
- * (tcp port, boots a new feed and saves FEED_KEY to .env) or PUNT_FEED_CONNECT
- * (host:port, joins the feed in FEED_KEY).
+ * Transport: by default peers discover each other on the Hyperswarm DHT via
+ * the feed's discovery key — no host:port anywhere. Set PUNT_FEED_LOCAL=1 to
+ * use the deterministic localhost-TCP path instead (offline demo / tests).
+ *
+ * Env: PUNT_ROLE=CREATOR|JOINER, PUNT_UI_PORT. PUNT_FEED_LISTEN marks the
+ * bootstrapper (boots a new feed, saves FEED_KEY to .env); everyone else joins
+ * the feed in FEED_KEY. In PUNT_FEED_LOCAL mode PUNT_FEED_LISTEN is the TCP
+ * port and PUNT_FEED_CONNECT is the host:port to dial.
  */
 import http from "node:http";
 import net from "node:net";
 import { join } from "node:path";
+import crypto from "hypercore-crypto";
 import { ethers } from "ethers";
 import { createFeed } from "@punt/feed/feed.js";
+import { joinFeedSwarm } from "@punt/feed/swarm.js";
 import { validateBet, betHash } from "@punt/shared/bet.js";
 import { buildParseHistory, extractBetDraft } from "@punt/shared/parse.js";
-import { startLocalLlm } from "@punt/shared/llm.js";
+import { startLocalLlm, startWhisper, cancelRun } from "@punt/shared/llm.js";
 import { settlementConfigFromEnv, signingAccount, usdtBalance } from "@punt/shared/wdk.js";
 import { majorityWinner } from "@punt/shared/verdict.js";
 import { readEnvFile, writeEnvFile, ROOT } from "../../scripts/env-file.js";
@@ -29,31 +36,49 @@ const JURY_GRACE_MS = 6 * 3600 * 1000; // refund only opens well after the jury 
 
 // ---- pillars ------------------------------------------------------------
 
+const localTransport = !!process.env.PUNT_FEED_LOCAL;
+const isBootstrap = !!process.env.PUNT_FEED_LISTEN;
+
 const feed = await (async () => {
   const storage = join(ROOT, ".stores", role.toLowerCase());
-  if (process.env.PUNT_FEED_LISTEN) {
-    const f = await createFeed({ storage });
+  // FEED_SECRET encrypts every block: the feed key says WHERE the group meets,
+  // the secret says WHO can read the pots. Both are handed to friends via .env.
+  if (isBootstrap && !env.FEED_SECRET) env.FEED_SECRET = crypto.randomBytes(32).toString("hex");
+  const encryptionKey = Buffer.from(env.FEED_SECRET, "hex");
+  const f = isBootstrap
+    ? await createFeed({ storage, encryptionKey })
+    : await createFeed({ storage, key: Buffer.from(env.FEED_KEY, "hex"), encryptionKey });
+  if (isBootstrap) {
     const map = await readEnvFile();
     map.set("FEED_KEY", f.key.toString("hex"));
+    map.set("FEED_SECRET", env.FEED_SECRET);
     await writeEnvFile(map);
+  }
+
+  if (!localTransport) {
+    joinFeedSwarm(f); // real Hyperswarm DHT discovery — default
+    return f;
+  }
+
+  // PUNT_FEED_LOCAL: deterministic localhost TCP for offline demo / tests.
+  if (isBootstrap) {
     const server = net.createServer((sock) => {
       const rep = f.replicate(false);
       sock.pipe(rep).pipe(sock);
       sock.on("error", () => {});
     });
     server.listen(Number(process.env.PUNT_FEED_LISTEN), "127.0.0.1");
-    return f;
+  } else {
+    const [host, port] = (process.env.PUNT_FEED_CONNECT ?? "127.0.0.1:9471").split(":");
+    (function connect() {
+      const sock = net.connect(Number(port), host, () => {
+        const rep = f.replicate(true);
+        sock.pipe(rep).pipe(sock);
+      });
+      sock.on("error", () => {});
+      sock.on("close", () => setTimeout(connect, 1500)); // peers come and go; keep dialing
+    })();
   }
-  const f = await createFeed({ storage, key: Buffer.from(env.FEED_KEY, "hex") });
-  const [host, port] = (process.env.PUNT_FEED_CONNECT ?? "127.0.0.1:9471").split(":");
-  (function connect() {
-    const sock = net.connect(Number(port), host, () => {
-      const rep = f.replicate(true);
-      sock.pipe(rep).pipe(sock);
-    });
-    sock.on("error", () => {});
-    sock.on("close", () => setTimeout(connect, 1500)); // peers come and go; keep dialing
-  })();
   return f;
 })();
 
@@ -65,7 +90,6 @@ const escrowRead = new ethers.Contract(
   ["function pots(bytes32) view returns (address creator, address joiner, uint256 stake, uint64 deadline, bool closed)"],
   provider,
 );
-const erc20 = new ethers.Interface(["function approve(address,uint256)"]);
 const escrowAbi = new ethers.Interface([
   "function create(bytes32,uint256,address[3],uint64)",
   "function join(bytes32)",
@@ -82,9 +106,19 @@ startLocalLlm({ onProgress: (p) => (llmProgress = p) })
 
 async function sendAndWait(to, data, label) {
   const { hash } = await account.sendTransaction({ to, data });
+  return waitFor(hash, label);
+}
+
+async function waitFor(hash, label) {
   const rcpt = await provider.waitForTransaction(hash);
   if (rcpt.status !== 1) throw new Error(`${label} reverted (${hash})`);
   return hash;
+}
+
+/** Escrow allowance via WDK's first-class approve (handles the USDT allowance-reset rule). */
+async function approveStake(units) {
+  const { hash } = await account.approve({ token: cfg.usdtContract, spender: cfg.escrowContract, amount: units });
+  return waitFor(hash, "approve");
 }
 
 const toUnits = (usdt) => BigInt(Math.round(usdt * 1e6));
@@ -167,7 +201,7 @@ async function postBet(draft) {
   // for bets on already-finished matches (the live-demo case) keep a real jury window
   const deadline = BigInt(Math.floor(Math.max(Date.parse(bet.match.kickoff) + JURY_GRACE_MS, Date.now() + JURY_GRACE_MS) / 1000));
   const jurors = [env.JUROR1_ADDRESS, env.JUROR2_ADDRESS, env.JUROR3_ADDRESS];
-  await sendAndWait(cfg.usdtContract, erc20.encodeFunctionData("approve", [cfg.escrowContract, stake]), "approve");
+  await approveStake(stake);
   await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("create", ["0x" + betId, stake, jurors, deadline]), "create pot");
   await feed.postBet(bet);
   return { betId };
@@ -175,7 +209,7 @@ async function postBet(draft) {
 
 async function joinBet(betId, stake) {
   const units = toUnits(stake);
-  await sendAndWait(cfg.usdtContract, erc20.encodeFunctionData("approve", [cfg.escrowContract, units]), "approve");
+  await approveStake(units);
   await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("join", ["0x" + betId]), "join pot");
   potCache.delete(betId);
   return { betId };
@@ -221,21 +255,60 @@ const readBody = (req) =>
     req.on("end", () => resolve(body ? JSON.parse(body) : {}));
   });
 
+// speech-to-bet: Whisper loads lazily on first use (~80MB registry fetch),
+// so peers who never touch the mic never pay for it
+let whisperPromise = null;
+const getWhisper = () => (whisperPromise ??= startWhisper());
+
 const routes = {
   "GET /state": () => stateSnapshot(),
-  "POST /parse": async ({ text }) => {
-    if (!llm) throw new Error("model still loading");
-    const raw = await llm.run(buildParseHistory(text), llm.betDraftSchema);
-    const d = extractBetDraft(raw);
-    if (!d.ok) throw new Error(d.error);
-    return { ...d.draft, text };
-  },
   "POST /post": (draft) => postBet(draft),
   "POST /join": ({ betId, stake }) => joinBet(betId, stake),
+  "POST /transcribe": async ({ audio }) => {
+    const stt = await getWhisper();
+    const text = await stt.transcribe(Buffer.from(audio, "base64"));
+    return { text: text.trim() };
+  },
 };
+
+// The composer parse streams over SSE: the user watches the on-device model
+// write the bet terms token by token. Latest-wins — a retype cancels the
+// in-flight run on the model instead of letting it burn to completion.
+let activeParseId = null;
+async function handleParse(req, res) {
+  const { text } = await readBody(req);
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    "access-control-allow-origin": "*",
+  });
+  const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  if (!llm) {
+    emit("error", { error: "model still loading" });
+    return res.end();
+  }
+  if (activeParseId) cancelRun(activeParseId); // stale parse — the user retyped
+  let myId = null;
+  try {
+    const raw = await llm.run(buildParseHistory(text), llm.betDraftSchema, {
+      onStart: (id) => (activeParseId = myId = id),
+      onDelta: (soFar) => emit("delta", { text: soFar }),
+    });
+    const d = extractBetDraft(raw);
+    if (!d.ok) throw new Error(d.error);
+    emit("done", { ...d.draft, text });
+  } catch (err) {
+    // a cancelled run just goes quiet; only real failures reach the composer
+    if (!/cancel/i.test(err.message ?? "")) emit("error", { error: err.message });
+  } finally {
+    if (activeParseId === myId) activeParseId = null;
+    res.end();
+  }
+}
 
 http
   .createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/parse") return handleParse(req, res).catch(() => res.end());
     res.setHeader("content-type", "application/json");
     res.setHeader("access-control-allow-origin", "*"); // renderer loads from file://; daemon binds 127.0.0.1 only
     const handler = routes[`${req.method} ${req.url}`];
@@ -253,3 +326,12 @@ http
   .listen(uiPort, "127.0.0.1", () => {
     console.log(`[${role}] peer daemon on http://127.0.0.1:${uiPort} — wallet ${myAddress}`);
   });
+
+// release the models + feed cleanly on shutdown
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, async () => {
+    const whisper = await whisperPromise?.catch(() => null);
+    await Promise.allSettled([llm?.close(), whisper?.close(), feed.close()]);
+    process.exit(0);
+  });
+}

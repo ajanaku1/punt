@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "P2P swipe-to-stake football bets \u2014 no bookmaker, no server, no oracle. Autobase feed + QVAC LLM jury + WDK USDT escrow.",
+  "description": "P2P swipe-to-stake football bets — no bookmaker, no server, no oracle. Autobase feed + QVAC LLM jury + WDK USDT escrow.",
   "license": "MIT",
   "workspaces": [
     "packages/shared",
@@ -21,6 +21,9 @@
   },
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
+    "coverage": "c8 --reporter=text --reporter=lcov --include=\"packages/**\" --include=\"scripts/**\" node --test \"tests/*.test.js\"",
+    "compile": "node scripts/compile.js",
+    "jury:demo": "node scripts/jury-demo.js",
     "relay": "node packages/relay/relay.js",
     "juror": "node packages/juror/index.js",
     "deploy-contracts": "node scripts/deploy.js",
@@ -40,10 +43,12 @@
     "@tetherto/wdk-wallet-evm": "^1.0.0-beta.13",
     "autobase": "^7.28.1",
     "corestore": "^7.11.0",
+    "hyperbee": "^2.24.2",
     "hypercore-crypto": "^3.7.0",
     "hyperswarm": "^4.17.0"
   },
   "devDependencies": {
+    "c8": "^11.0.0",
     "electron": "^43.0.0",
     "ethers": "^6.13.0",
     "solc": "^0.8.26"

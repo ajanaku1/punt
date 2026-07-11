@@ -7,20 +7,34 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import crypto from "hypercore-crypto";
 import { createFeed } from "@punt/feed/feed.js";
 
-const a = await createFeed({ storage: await mkdtemp(join(tmpdir(), "punt-junk-a-")) });
-const b = await createFeed({ storage: await mkdtemp(join(tmpdir(), "punt-junk-b-")), key: a.key });
+const encryptionKey = crypto.randomBytes(32); // group secret — the same encrypted path the app runs
+const a = await createFeed({ storage: await mkdtemp(join(tmpdir(), "punt-junk-a-")), encryptionKey });
+const b = await createFeed({ storage: await mkdtemp(join(tmpdir(), "punt-junk-b-")), key: a.key, encryptionKey });
 const s1 = a.replicate(true);
 const s2 = b.replicate(false);
 s1.pipe(s2).pipe(s1);
 
-console.log("peer B appends three messages: two junk, one valid bet…");
+console.log("peer B appends four messages: three junk (one impersonating), one valid bet…");
 await b.base.append({ type: "bet", text: "free money click here", stake: 999999999 }, { optimistic: true });
 await b.base.append({ type: "spam", lol: true }, { optimistic: true });
+// schema-valid but claims someone else's identity — anti-spoofing drops it
 await b.postBet({
   type: "bet",
-  creator: "b".repeat(64),
+  creator: "d".repeat(64),
+  text: "impersonated bet",
+  match: { home: "France", away: "Brazil", kickoff: "2026-07-05T19:00:00Z" },
+  market: "result",
+  selection: "France win",
+  stake: 5,
+  resolution: "France beat Brazil at full time per the official result",
+  createdAt: Date.now(),
+});
+await b.postBet({
+  type: "bet",
+  creator: b.localKey.toString("hex"), // honest: author = the appending writer
   text: "France beat Brazil, 5 USDT",
   match: { home: "France", away: "Brazil", kickoff: "2026-07-05T19:00:00Z" },
   market: "result",

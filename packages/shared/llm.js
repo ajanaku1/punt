@@ -7,7 +7,16 @@ import { join } from "node:path";
 import { createWriteStream, existsSync } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { loadModel, completion, LLAMA_3_2_1B_INST_Q4_0 } from "@qvac/sdk";
+import {
+  loadModel,
+  unloadModel,
+  completion,
+  cancel,
+  transcribe,
+  LLAMA_3_2_1B_INST_Q4_0,
+  QWEN3_4B_INST_Q4_K_M,
+  WHISPER_EN_BASE_Q8_0,
+} from "@qvac/sdk";
 
 // Served from the Ollama registry — the HF CDN is unreachable from some networks.
 // Blob digest doubles as an integrity check.
@@ -19,8 +28,9 @@ export const MODELS = {
   // fast parse in the composer — latency matters, the user confirms the draft anyway
   parse: LLAMA_3_2_1B_INST_Q4_0,
   // juror grading — accuracy is the product; a 1B flips verdicts on 2-1 scorelines.
-  // Loaded from a plain GGUF path (the SDK registry mislabels its Qwen 4B entry).
-  judge: JUDGE_GGUF,
+  // (The SDK's QWEN3_4B_Q4_K_M entry is mislabeled addon:"diffusion";
+  //  QWEN3_4B_INST_Q4_K_M is the correct llamacpp one — see startLocalLlm.)
+  judge: "judge",
 };
 
 /** Fetch the judge model once if missing (~2.4GB) so `npm run demo` works out of the box. */
@@ -50,18 +60,42 @@ const BET_DRAFT_SCHEMA = {
   additionalProperties: false,
 };
 
+const MODEL_CONFIG = { ctx_size: 4096, device: "cpu", gpu_layers: 0 };
+
+/**
+ * Resolve + load the judge. Priority: local GGUF if already fetched (no
+ * re-download) → the SDK registry constant (idiomatic, sha256-checked by the
+ * SDK) → the Ollama blob self-fetch for networks the registry can't reach.
+ */
+async function loadJudge(onProgress) {
+  const opts = { modelConfig: MODEL_CONFIG, onProgress: (p) => onProgress?.(p.percentage) };
+  if (!existsSync(JUDGE_GGUF)) {
+    try {
+      return await loadModel({ modelSrc: QWEN3_4B_INST_Q4_K_M, ...opts });
+    } catch {
+      await ensureJudgeModel(onProgress); // registry unreachable — pinned blob fallback
+    }
+  }
+  return loadModel({ modelSrc: JUDGE_GGUF, modelType: "llamacpp-completion", ...opts });
+}
+
 /** Load the local model once; returns { run } where run(history, schema?) → completion text. */
 export async function startLocalLlm({ onProgress, model = MODELS.parse } = {}) {
-  if (model === MODELS.judge) await ensureJudgeModel(onProgress);
-  const modelId = await loadModel({
-    modelSrc: model,
-    ...(model === MODELS.judge ? { modelType: "llamacpp-completion" } : {}),
+  const modelId =
+    model === MODELS.judge
+      ? await loadJudge(onProgress)
+      : await loadModel({
+          modelSrc: model,
+          modelConfig: MODEL_CONFIG,
+          onProgress: (p) => onProgress?.(p.percentage),
+        });
 
-    modelConfig: { ctx_size: 4096, device: "cpu", gpu_layers: 0 },
-    onProgress: (p) => onProgress?.(p.percentage),
-  });
-
-  async function run(history, schema, { maxTokens = 300 } = {}) {
+  /**
+   * One completion. `onDelta(textSoFar)` fires per streamed token so a UI can
+   * render the model thinking live; `onStart(requestId)` hands out the SDK
+   * request id so a stale run can be cancelled (see cancelRun).
+   */
+  async function run(history, schema, { maxTokens = 300, onDelta, onStart } = {}) {
     const req = {
       modelId,
       history,
@@ -72,13 +106,46 @@ export async function startLocalLlm({ onProgress, model = MODELS.parse } = {}) {
     };
     if (schema) req.responseFormat = { type: "json_schema", json_schema: { name: "punt", schema } };
     const runHandle = completion(req);
+    onStart?.(runHandle.requestId);
     let text = "";
     for await (const event of runHandle.events) {
-      if (event.type === "contentDelta") text += event.text;
+      if (event.type === "contentDelta") {
+        text += event.text;
+        onDelta?.(text);
+      }
     }
     await runHandle.final;
     return text;
   }
 
-  return { modelId, run, betDraftSchema: BET_DRAFT_SCHEMA };
+  return {
+    modelId,
+    run,
+    betDraftSchema: BET_DRAFT_SCHEMA,
+    /** Release the model's memory — call on daemon shutdown. */
+    close: () => unloadModel({ modelId }).catch(() => {}),
+  };
+}
+
+/** Cancel an in-flight run by its requestId (latest-wins composer parses). */
+export function cancelRun(requestId) {
+  return cancel({ requestId }).catch(() => {}); // races with natural completion are fine
+}
+
+/**
+ * On-device speech-to-text (Whisper base.en, ~80MB, fetched via the SDK
+ * registry on first use). Speak the bet the way you'd say it in the group
+ * chat; the text lands in the same parse pipeline as typing.
+ */
+export async function startWhisper({ onProgress } = {}) {
+  const modelId = await loadModel({
+    modelSrc: WHISPER_EN_BASE_Q8_0,
+    onProgress: (p) => onProgress?.(p.percentage),
+  });
+  return {
+    modelId,
+    /** WAV/PCM buffer (or file path) → transcript text. */
+    transcribe: (audio) => transcribe({ modelId, audioChunk: audio }),
+    close: () => unloadModel({ modelId }).catch(() => {}),
+  };
 }

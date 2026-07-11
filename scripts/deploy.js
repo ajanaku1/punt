@@ -9,25 +9,9 @@
  * Run: node scripts/fund-wallets.js first, fund CREATOR with Sepolia ETH, then
  *      node scripts/deploy.js
  */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ethers } from "ethers";
-import solc from "solc";
-import { readEnvFile, writeEnvFile, ROOT } from "./env-file.js";
-
-async function compile(name) {
-  const source = await readFile(join(ROOT, "contracts", `${name}.sol`), "utf8");
-  const input = {
-    language: "Solidity",
-    sources: { [`${name}.sol`]: { content: source } },
-    settings: { outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } }, // same settings as tests — deploy the bytecode we tested
-  };
-  const out = JSON.parse(solc.compile(JSON.stringify(input)));
-  const errors = (out.errors ?? []).filter((e) => e.severity === "error");
-  if (errors.length) throw new Error(errors.map((e) => e.formattedMessage).join("\n"));
-  const c = out.contracts[`${name}.sol`][name];
-  return { abi: c.abi, bytecode: c.evm.bytecode.object };
-}
+import { readEnvFile, writeEnvFile } from "./env-file.js";
+import { compileContract as compile } from "./solc-compile.js";
 
 const env = await readEnvFile();
 const mnemonic = env.get("CREATOR_MNEMONIC");

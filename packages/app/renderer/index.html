@@ -191,6 +191,20 @@
     background: var(--surface); margin-bottom: 5px; border-left: 3px solid var(--lime-dim);
   }
   .readout .row.flag { border-left-color: var(--amber); }
+  .say-wrap { position: relative; }
+  .say-wrap textarea { width: 100%; }
+  .mic {
+    position: absolute; right: 10px; bottom: 12px; width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    border: 1px solid var(--lime-dim); background: var(--surface); font-size: 16px;
+    clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  }
+  .mic.rec { background: var(--lime); animation: micpulse 1s infinite; }
+  @keyframes micpulse { 50% { opacity: .55; } }
+  .readout .row.stream b {
+    font-family: ui-monospace, monospace; font-size: 11px; text-align: left;
+    color: var(--lime-dim); word-break: break-all; white-space: pre-wrap;
+  }
   .readout .k { color: var(--muted); flex-shrink: 0; }
   .readout b { color: var(--text); text-align: right; }
   .readout .row.flag b { color: var(--amber); }
@@ -258,8 +272,11 @@
 
   <div class="composer" id="composer">
     <div class="lower-third">YOUR CALL</div>
-    <div class="sub">Type it how you'd shout it. Your on-device AI drafts the terms — nothing leaves this machine until you post.</div>
-    <textarea id="say" placeholder="e.g. England keep a clean sheet against Ghana on Sunday, tenner on it"></textarea>
+    <div class="sub">Type it — or say it — how you'd shout it. Your on-device AI drafts the terms; nothing leaves this machine until you post.</div>
+    <div class="say-wrap">
+      <textarea id="say" placeholder="e.g. England keep a clean sheet against Ghana on Sunday, tenner on it"></textarea>
+      <div class="mic" id="mic" title="Say your bet — transcribed on this device">🎙</div>
+    </div>
     <div class="readout" id="readout"></div>
     <div class="btn-row">
       <div class="btn ghost" id="cancel">BACK</div>

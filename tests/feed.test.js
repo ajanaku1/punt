@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFeed } from "@punt/feed/feed.js";
 
-const validBet = (text) => ({
+// creator MUST be the appending writer's key (invariant I2, anti-spoofing) —
+// this mirrors how peer.js posts bets (creator: feed.localKey).
+const validBet = (creator, text) => ({
   type: "bet",
-  creator: "b".repeat(64),
+  creator,
   text,
   match: { home: "France", away: "Brazil", kickoff: "2026-07-05T19:00:00Z" },
   market: "result",
@@ -39,14 +41,15 @@ test("optimistic bet from non-writer converges on both peers; junk never lands",
   const s2 = b.replicate(false);
   s1.pipe(s2).pipe(s1);
 
-  await b.postBet(validBet("France win, 5 USDT"));
+  const bKey = b.localKey.toString("hex");
+  await b.postBet(validBet(bKey, "France win, 5 USDT"));
   await eventually(async () => (await a.listBets()).length === 1);
   await eventually(async () => (await b.listBets()).length === 1);
   assert.equal((await a.listBets())[0].text, "France win, 5 USDT");
 
   // junk: schema-invalid append (raw, as a hostile peer would) is never acked into the view
   await b.base.append({ type: "spam", lol: true }, { optimistic: true });
-  await b.postBet(validBet("Second valid bet"));
+  await b.postBet(validBet(bKey, "Second valid bet"));
   await eventually(async () => (await a.listBets()).length === 2);
   const texts = (await a.listBets()).map((x) => x.text);
   assert.deepEqual(texts.sort(), ["France win, 5 USDT", "Second valid bet"].sort());

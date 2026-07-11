@@ -1,29 +1,10 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
-import solc from "solc";
+import { compileContract as compile } from "../scripts/solc-compile.js";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 8600 + (process.pid % 400); // fresh port per run; a crashed run can't poison the next
-
-function compile(name) {
-  return readFile(join(ROOT, "contracts", `${name}.sol`), "utf8").then((source) => {
-    const input = {
-      language: "Solidity",
-      sources: { [`${name}.sol`]: { content: source } },
-      settings: { outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
-    };
-    const out = JSON.parse(solc.compile(JSON.stringify(input)));
-    const errors = (out.errors ?? []).filter((e) => e.severity === "error");
-    if (errors.length) throw new Error(errors.map((e) => e.formattedMessage).join("\n"));
-    const c = out.contracts[`${name}.sol`][name];
-    return { abi: c.abi, bytecode: c.evm.bytecode.object };
-  });
-}
 
 let anvil, provider, usdt, escrow;
 // anvil default funded accounts

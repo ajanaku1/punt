@@ -11,6 +11,32 @@ async function api(path, body) {
   return json;
 }
 
+/** Streamed parse over SSE: onDelta gets the model's output as it is written. */
+async function apiParse(text, onDelta) {
+  const res = await fetch(API + "/parse", { method: "POST", body: JSON.stringify({ text }) });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let result = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const event = frame.match(/^event: (.+)$/m)?.[1];
+      const data = JSON.parse(frame.match(/^data: (.+)$/m)?.[1] ?? "{}");
+      if (event === "delta") onDelta(data.text);
+      else if (event === "done") result = data;
+      else if (event === "error") throw new Error(data.error);
+    }
+  }
+  if (!result) throw new Error("superseded"); // a newer parse cancelled this one
+  return result;
+}
+
 function toast(msg, ms = 2600) {
   $("toast").textContent = msg;
   $("toast").style.display = "block";
@@ -283,6 +309,77 @@ function renderDraft(d) {
     d.flags.map((f) => `<div class="row flag"><span class="k">⚑</span><b>${esc(f)}</b></div>`).join("");
 }
 
+// ---- speech-to-bet: mic → 16k mono WAV → on-device Whisper → composer ------
+
+function encodeWav(samples, inRate) {
+  // downsample to 16k mono PCM16 — the shape every whisper build accepts
+  const outRate = 16000;
+  const ratio = inRate / outRate;
+  const n = Math.floor(samples.length / ratio);
+  const pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const s = Math.max(-1, Math.min(1, samples[Math.floor(i * ratio)]));
+    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.length * 2);
+  const v = new DataView(buf);
+  const str = (off, s) => [...s].forEach((c, i) => v.setUint8(off + i, c.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVEfmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, outRate, true); v.setUint32(28, outRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+let rec = null; // { ctx, stream, node, chunks }
+$("mic").onclick = async () => {
+  if (rec) {
+    // stop → encode → transcribe on-device → drop into the box and parse
+    const { ctx, stream, node, chunks } = rec;
+    rec = null;
+    $("mic").classList.remove("rec");
+    node.disconnect();
+    stream.getTracks().forEach((t) => t.stop());
+    const samples = new Float32Array(chunks.reduce((a, c) => a + c.length, 0));
+    let off = 0;
+    for (const c of chunks) { samples.set(c, off); off += c.length; }
+    await ctx.close();
+    if (samples.length < ctx.sampleRate / 4) return; // a blip, not speech
+    try {
+      $("note").className = "note";
+      $("note").textContent = "Transcribing on this device… first use fetches the speech model.";
+      const { text } = await api("/transcribe", { audio: encodeWav(samples, ctx.sampleRate) });
+      if (!text) throw new Error("didn't catch that — try again closer to the mic");
+      $("say").value = text;
+      $("say").dispatchEvent(new Event("input"));
+      $("go").click(); // straight into the same parse pipeline as typing
+    } catch (err) {
+      $("note").className = "note err";
+      $("note").textContent = err.message;
+    }
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(stream);
+    const node = ctx.createScriptProcessor(4096, 1, 1);
+    const chunks = [];
+    node.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(node);
+    node.connect(ctx.destination);
+    rec = { ctx, stream, node, chunks };
+    $("mic").classList.add("rec");
+    $("note").className = "note";
+    $("note").textContent = "Listening — tap the mic again when you're done.";
+  } catch {
+    $("note").className = "note err";
+    $("note").textContent = "Mic unavailable — type it instead.";
+  }
+};
+
 $("go").onclick = async () => {
   const text = $("say").value.trim();
   if (!text) return;
@@ -290,7 +387,10 @@ $("go").onclick = async () => {
   try {
     if (!state.draft) {
       $("note").textContent = "Your AI is reading it…";
-      state.draft = await api("/parse", { text });
+      // watch the on-device model write the terms, token by token
+      state.draft = await apiParse(text, (soFar) => {
+        $("readout").innerHTML = `<div class="row stream"><b>${esc(soFar)}</b></div>`;
+      });
       renderDraft(state.draft);
       $("go").textContent = `POST IT — STAKE ${state.draft.stake} USDT`;
       $("note").textContent = "Check the terms — the jury settles on exactly these words.";
@@ -305,6 +405,7 @@ $("go").onclick = async () => {
       refresh();
     }
   } catch (err) {
+    if (err.message === "superseded") return; // a newer parse took over this composer
     $("note").className = "note err";
     $("note").textContent = err.message;
     $("go").removeAttribute("disabled");

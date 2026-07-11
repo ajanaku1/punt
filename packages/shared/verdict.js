@@ -25,9 +25,15 @@ export function verdictDigest({ chainId, escrow, betId, winner }) {
   );
 }
 
-/** EIP-191 signature over the digest (matches the contract's prefixed recover). */
+/**
+ * EIP-191 signature over the digest (matches the contract's prefixed recover).
+ * Accepts either an ethers wallet (`.signMessage`) or a WDK account (`.sign`) —
+ * both delegate to the same primitive, so the signature is byte-identical and
+ * recovers the same address under `ecrecover`.
+ */
 export function signVerdict(signer, verdict) {
-  return signer.signMessage(ethers.getBytes(verdictDigest(verdict)));
+  const bytes = ethers.getBytes(verdictDigest(verdict));
+  return signer.signMessage ? signer.signMessage(bytes) : signer.sign(bytes);
 }
 
 export function verifyVerdict({ chainId, escrow, betId, winner, sig, juror }) {

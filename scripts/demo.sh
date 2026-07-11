@@ -12,6 +12,13 @@ cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "No .env — run: node scripts/fund-wallets.js && node scripts/deploy.js"; exit 1; }
 grep -q ESCROW_CONTRACT .env || { echo "Contracts not deployed — run: node scripts/deploy.js"; exit 1; }
 
+# one-time migration: stores created before the feed was encrypted can't join
+# the encrypted feed — start fresh (the bootstrap peer mints FEED_SECRET)
+if [ -d .stores ] && ! grep -q FEED_SECRET .env; then
+  echo "▸ upgrading to the encrypted feed — clearing pre-encryption stores…"
+  rm -rf .stores
+fi
+
 pids=()
 cleanup() { kill "${pids[@]}" 2>/dev/null || true; }
 trap cleanup EXIT
