@@ -56,29 +56,40 @@ const feed = await (async () => {
   }
 
   if (!localTransport) {
-    joinFeedSwarm(f); // real Hyperswarm DHT discovery — default
+    const handle = joinFeedSwarm(f); // real Hyperswarm DHT discovery — default
+    f._puntSwarm = handle;
     return f;
   }
 
   // PUNT_FEED_LOCAL: deterministic localhost TCP for offline demo / tests.
+  let localPeers = 0;
   if (isBootstrap) {
     const server = net.createServer((sock) => {
+      localPeers += 1;
+      sock.on("close", () => {
+        localPeers = Math.max(0, localPeers - 1);
+      });
+      sock.on("error", () => {});
       const rep = f.replicate(false);
       sock.pipe(rep).pipe(sock);
-      sock.on("error", () => {});
     });
     server.listen(Number(process.env.PUNT_FEED_LISTEN), "127.0.0.1");
   } else {
     const [host, port] = (process.env.PUNT_FEED_CONNECT ?? "127.0.0.1:9471").split(":");
     (function connect() {
       const sock = net.connect(Number(port), host, () => {
+        localPeers = 1;
         const rep = f.replicate(true);
         sock.pipe(rep).pipe(sock);
       });
       sock.on("error", () => {});
-      sock.on("close", () => setTimeout(connect, 1500)); // peers come and go; keep dialing
+      sock.on("close", () => {
+        localPeers = 0;
+        setTimeout(connect, 1500); // peers come and go; keep dialing
+      });
     })();
   }
+  f._puntSwarm = { peerCount: () => localPeers };
   return f;
 })();
 
@@ -104,6 +115,13 @@ startLocalLlm({ onProgress: (p) => (llmProgress = p) })
 
 // ---- helpers ------------------------------------------------------------
 
+/** Last on-chain hashes this peer produced — surfaces in the stack HUD. */
+const lastTx = { create: null, join: null, settle: null, approve: null };
+/** @type {{ betId: string, txHash: string, explorerUrl: string, at: number } | null} */
+let lastSettleEvent = null;
+
+const EXPLORER_TX = "https://sepolia.basescan.org/tx/";
+
 async function sendAndWait(to, data, label) {
   const { hash } = await account.sendTransaction({ to, data });
   return waitFor(hash, label);
@@ -112,6 +130,10 @@ async function sendAndWait(to, data, label) {
 async function waitFor(hash, label) {
   const rcpt = await provider.waitForTransaction(hash);
   if (rcpt.status !== 1) throw new Error(`${label} reverted (${hash})`);
+  if (label.startsWith("create")) lastTx.create = hash;
+  else if (label.startsWith("join")) lastTx.join = hash;
+  else if (label.startsWith("settle")) lastTx.settle = hash;
+  else if (label.startsWith("approve")) lastTx.approve = hash;
   return hash;
 }
 
@@ -166,6 +188,11 @@ async function stateSnapshot() {
     usdtBalance(account, cfg).catch(() => 0n),
     provider.getBalance(myAddress).catch(() => 0n),
   ]);
+  const peerCount = feed._puntSwarm?.peerCount?.() ?? 0;
+  // hand the settle toast once, then clear so it doesn't re-fire every poll
+  const settleJustNow = lastSettleEvent;
+  if (lastSettleEvent && Date.now() - lastSettleEvent.at > 30_000) lastSettleEvent = null;
+
   return {
     role,
     address: myAddress,
@@ -175,6 +202,26 @@ async function stateSnapshot() {
     modelProgress: llmProgress,
     feedKey: feed.key.toString("hex"),
     peerKey: feed.localKey.toString("hex"),
+    // stack HUD — judge-visible proof that Pears / QVAC / WDK are live
+    stack: {
+      pears: {
+        transport: localTransport ? "local" : "hyperswarm",
+        peers: peerCount,
+        encrypted: !!env.FEED_SECRET,
+      },
+      qvac: {
+        parseReady: !!llm,
+        progress: llmProgress,
+      },
+      wdk: {
+        address: myAddress,
+        usdt: Number(usdt) / 1e6,
+        lastTx: lastTx.settle ?? lastTx.join ?? lastTx.create ?? lastTx.approve,
+      },
+    },
+    lastTx: { ...lastTx },
+    settleEvent: settleJustNow,
+    explorerBase: EXPLORER_TX,
     bets: withStatus,
   };
 }
@@ -202,17 +249,21 @@ async function postBet(draft) {
   const deadline = BigInt(Math.floor(Math.max(Date.parse(bet.match.kickoff) + JURY_GRACE_MS, Date.now() + JURY_GRACE_MS) / 1000));
   const jurors = [env.JUROR1_ADDRESS, env.JUROR2_ADDRESS, env.JUROR3_ADDRESS];
   await approveStake(stake);
-  await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("create", ["0x" + betId, stake, jurors, deadline]), "create pot");
+  const createHash = await sendAndWait(
+    cfg.escrowContract,
+    escrowAbi.encodeFunctionData("create", ["0x" + betId, stake, jurors, deadline]),
+    "create pot",
+  );
   await feed.postBet(bet);
-  return { betId };
+  return { betId, txHash: createHash, explorerUrl: EXPLORER_TX + createHash };
 }
 
 async function joinBet(betId, stake) {
   const units = toUnits(stake);
   await approveStake(units);
-  await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("join", ["0x" + betId]), "join pot");
+  const joinHash = await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("join", ["0x" + betId]), "join pot");
   potCache.delete(betId);
-  return { betId };
+  return { betId, txHash: joinHash, explorerUrl: EXPLORER_TX + joinHash };
 }
 
 // the winner watches the verdict gossip and submits the 2-of-3 settle themselves
@@ -231,14 +282,21 @@ async function settleWatch() {
     if (!majority || majority.winner !== myAddress) continue;
     console.log(`[${role}] jury majority says we won ${betId.slice(0, 12)}… — settling`);
     try {
-      await sendAndWait(
+      const settleHash = await sendAndWait(
         cfg.escrowContract,
         escrowAbi.encodeFunctionData("settle", ["0x" + betId, majority.winner, majority.sigs]),
         "settle",
       );
       settled.add(betId);
       potCache.delete(betId);
-      console.log(`[${role}] pot released — the winner's USDT is home`);
+      // one-shot flag for the renderer toast (cleared after /state reads it)
+      lastSettleEvent = {
+        betId,
+        txHash: settleHash,
+        explorerUrl: EXPLORER_TX + settleHash,
+        at: Date.now(),
+      };
+      console.log(`[${role}] pot released — the winner's USDT is home (${settleHash})`);
     } catch (err) {
       console.error(`[${role}] settle failed:`, err.message);
     }

@@ -21,14 +21,21 @@ import Hyperswarm from "hyperswarm";
  */
 export function joinFeedSwarm(feed, { onPeer, bootstrap, swarm } = {}) {
   swarm = swarm ?? new Hyperswarm(bootstrap ? { bootstrap } : undefined);
+  let peers = 0;
   swarm.on("connection", (conn) => {
+    peers += 1;
     conn.on?.("error", () => {}); // peers drop; keep the process alive
+    conn.on?.("close", () => {
+      peers = Math.max(0, peers - 1);
+    });
     feed.replicate(conn);
     onPeer?.(conn);
   });
   const discovery = swarm.join(feed.discoveryKey, { server: true, client: true });
   return {
     swarm,
+    /** Live Hyperswarm connection count (other peers currently wired). */
+    peerCount: () => peers,
     flushed: () => discovery.flushed(),
     async destroy() {
       await swarm.destroy();

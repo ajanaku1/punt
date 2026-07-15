@@ -29,8 +29,12 @@ cache/
 
 # Local tooling / editor
 .claude/
+.codewhale
 .DS_Store
 .vercel
+
+# Pitch deck (local build artifacts)
+pitch-deck/
 
 # Media + the video production project
 *.mp4
@@ -49,3 +53,7 @@ coverage/
 
 # hackathon submission artifact (local only)
 docs/submission-details.md
+
+# Local tooling
+.Codex/
+proposals/

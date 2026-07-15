@@ -6,15 +6,36 @@ Post a football bet in plain English, let a friend swipe right to match your sta
 [![Solidity](https://img.shields.io/badge/Solidity-0.8-363636?logo=solidity)](https://soliditylang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/ajanaku1/punt/actions/workflows/ci.yml/badge.svg)](https://github.com/ajanaku1/punt/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/badge/tests-50_passing-brightgreen)]()
 [![coverage](https://codecov.io/gh/ajanaku1/punt/branch/main/graph/badge.svg)](https://codecov.io/gh/ajanaku1/punt)
 
 ![The swipe feed](docs/images/home.png)
+
+## Why this ranks
+
+1. **All three Tether stacks are load-bearing.** Pears carries the market, QVAC is the brain, WDK holds the money. Remove any one and the app dies.
+2. **On-device AI jury is enforced on-chain.** Three peers grade with local models; two matching WDK signatures release the pot. `Escrow.settle` verifies them with `ecrecover`.
+
+No other finalist does both.
+
+## Zero-install proof
+
+| Claim | Proof without running the app |
+|-------|-------------------------------|
+| All three stacks load-bearing | [Tech stack table](#tech-stack): each row names what breaks without it |
+| On-device jury is real | `npm run jury:demo` → 5/5 (after clone) |
+| Create pot on-chain | [tx 0x98e6dab9…](https://sepolia.basescan.org/tx/0x98e6dab9f0c2165d9b4faabf1632a1644e4d944c933cedc10c4c2ad31cdfaad0) |
+| Join pot on-chain | [tx 0x9e775918…](https://sepolia.basescan.org/tx/0x9e775918b238c4af0e6289337a115a0445bd5736bf90a0027b2337e9fb7518d5) |
+| **Settle 2/3 ecrecover** | [tx 0x403b1dec…](https://sepolia.basescan.org/tx/0x403b1dec9c0e8f6c72e59efe58840c1353dfb26dc83d7be5daf1059903f9e6ae) |
+| CI green | [badge above](https://github.com/ajanaku1/punt/actions/workflows/ci.yml) |
+
+Judge walk-through with pass/fail gates: **[docs/judge-in-5-minutes.md](docs/judge-in-5-minutes.md)**. Live demo with checklist: `npm run demo:judge`.
 
 ## Live Demo
 
 **[https://punt-ten.vercel.app](https://punt-ten.vercel.app)**
 
-Marketing site for the product. The app itself is a local Electron peer demo (see Running Locally).
+Marketing site for the product. The app itself is a local Electron peer demo (see Testing the App).
 
 ## Screenshots
 
@@ -70,12 +91,15 @@ Reviewing this for the cup? [Judge in 5 minutes](docs/judge-in-5-minutes.md) is 
 
 ### Part 2: the journey
 
-1. Run `npm run demo`. Two phone-shaped windows open (creator and joiner), and three juror processes start printing to the terminal.
-2. On the creator phone, press `+` and type a bet on a recently finished real match, for example "Morocco beat Ecuador yesterday, 4 on it". The local model reads it back as structured terms. Press POST. Your stake locks in the escrow.
-3. Watch the bet appear on the joiner phone's card stack. It arrived over P2P replication, not through any server.
-4. Swipe right on the joiner phone. The joiner's stake locks. The pot now holds both stakes on-chain.
-5. Watch the terminal. Each juror fetches the official result, grades the bet with its own local model, and prints its signed verdict.
-6. The winner's daemon collects two matching signatures and settles. The winner's USDT balance rises by the whole pot.
+1. Run `npm run demo:judge` (or `npm run demo`). Two phone-shaped windows open, three juror processes print to the terminal, and a checklist is printed.
+2. Confirm the **stack HUD** under the ticker: Pears (peers · dht · enc), QVAC (AI ready), WDK (balance / last tx).
+3. On the creator phone, press `+` and type a bet on a recently finished real match, for example "Morocco beat Ecuador yesterday, 4 on it". The local model reads it back as structured terms. Press POST. Your stake locks in the escrow.
+4. Watch the bet appear on the joiner phone's card stack. It arrived over P2P replication, not through any server.
+5. Swipe right on the joiner phone. The joiner's stake locks. The pot now holds both stakes on-chain.
+6. Watch the terminal. Each juror fetches the official result, grades the bet with its own local model, and prints its signed verdict.
+7. The winner's daemon collects two matching signatures and settles. A toast shows **Settled on-chain · 2 of 3 QVAC jurors · WDK · ecrecover** with a Basescan link. The winner's USDT balance rises by the whole pot.
+
+Venue Wi-Fi blocking the DHT? `PUNT_FEED_LOCAL=1 npm run demo:judge` uses localhost TCP as a fallback; the default remains Hyperswarm.
 
 ### Part 3: spam defense
 
@@ -132,7 +156,7 @@ npm install --registry=https://registry.npmjs.org
 node scripts/fund-wallets.js       # generate wallets into .env
 # fund CREATOR + JOINER with Base Sepolia ETH, then:
 node scripts/deploy.js             # deploy USDT + escrow, mint test funds
-npm test                           # 49 tests (escrow tests need foundry's anvil)
+npm test                           # 50 tests (escrow tests need foundry's anvil)
 npm run demo                       # the full two-phone, three-juror demo
 ```
 
@@ -140,7 +164,7 @@ Proofs, each one command:
 
 ```bash
 npm run jury:demo                  # real Qwen3 4B grades tricky fixtures on-device
-npm run coverage                   # 49 tests with a coverage report
+npm run coverage                   # 50 tests with a coverage report
 node scripts/p2p-check.js          # two-process replication proof
 node scripts/junk-check.js         # spam rejection proof
 node scripts/join-check.js         # WDK wallets fund a pot on-chain
@@ -161,7 +185,7 @@ punt/
     juror/              grading prompts, football-data client, juror daemon
     app/                peer daemon, Electron shell, swipe UI
   scripts/              fund-wallets, deploy, demo, compile, jury-demo, proofs
-  tests/                49 node:test specs (schema, feed reducer + encryption, escrow, parse, verdicts, WDK signing, DHT wiring, multi-peer convergence)
+  tests/                50 node:test specs (schema, feed reducer + encryption, escrow, parse, verdicts, WDK signing, DHT wiring, multi-peer convergence, peerCount HUD)
   .github/workflows/    CI: contract compile, tests, coverage
   docs/images/          UI screenshots for the README
 ```

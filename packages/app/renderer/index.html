@@ -37,6 +37,29 @@
   }
   .ticker b { color: var(--lime-dim); }
 
+  /* stack HUD — always-on proof Pears / QVAC / WDK are live */
+  .stack-hud {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px;
+    background: var(--line); border-bottom: 1px solid var(--line); flex-shrink: 0;
+  }
+  .stack-hud .cell { background: var(--surface); padding: 7px 10px; min-width: 0; }
+  .stack-hud .k {
+    font-size: 9px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase;
+  }
+  .stack-hud .v {
+    font-size: 11px; font-weight: 700; margin-top: 2px; color: var(--lime);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .stack-hud .v.dim { color: var(--body); font-weight: 600; }
+  .stack-hud .v.warn { color: var(--amber); }
+
+  .toast.settle {
+    white-space: normal; max-width: calc(100% - 32px); text-align: left;
+    border-left: 3px solid var(--lime); padding: 12px 14px; line-height: 1.4;
+  }
+  .toast.settle b { color: var(--lime); display: block; margin-bottom: 4px; }
+  .toast.settle a { color: var(--lime); font-weight: 700; }
+
   /* tab pages */
   .page { flex: 1; display: none; flex-direction: column; overflow: hidden; position: relative; }
   .page.active { display: flex; }
@@ -240,6 +263,11 @@
     <div class="wallet">◈ <b id="usdt">—</b> USDT</div>
   </div>
   <div class="ticker" id="ticker">CONNECTING TO PEERS…</div>
+  <div class="stack-hud" id="stack-hud" aria-label="Tether stack status">
+    <div class="cell"><div class="k">Pears</div><div class="v dim" id="hud-pears">—</div></div>
+    <div class="cell"><div class="k">QVAC</div><div class="v dim" id="hud-qvac">—</div></div>
+    <div class="cell"><div class="k">WDK</div><div class="v dim" id="hud-wdk">—</div></div>
+  </div>
 
   <!-- HOME -->
   <div class="page active" id="page-home">

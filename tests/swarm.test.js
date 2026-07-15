@@ -46,6 +46,24 @@ test("joinFeedSwarm joins the feed's discovery key and replicates each connectio
   assert.equal(peers.length, 1, "onPeer fired for the connection");
 });
 
+// Stack HUD reads peerCount() — live connections in, close drops the count.
+test("joinFeedSwarm peerCount tracks live connections for the stack HUD", () => {
+  const feed = { discoveryKey: crypto.randomBytes(32), replicate: () => {} };
+  const swarm = fakeSwarm();
+  const handle = joinFeedSwarm(feed, { swarm });
+
+  assert.equal(handle.peerCount(), 0);
+  const a = new EventEmitter();
+  const b = new EventEmitter();
+  swarm.emit("connection", a);
+  swarm.emit("connection", b);
+  assert.equal(handle.peerCount(), 2);
+  a.emit("close");
+  assert.equal(handle.peerCount(), 1);
+  b.emit("close");
+  assert.equal(handle.peerCount(), 0);
+});
+
 test("two peers sharing a feed key target the same DHT topic", async () => {
   const dirs = [];
   const mk = async (n) => {

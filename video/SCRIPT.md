@@ -1,4 +1,4 @@
-# Punt — voiceover script (per scene)
+# Punt - voiceover script (per scene)
 
 Voice: edge-tts `en-US-AndrewMultilingualNeural`, rate -6% (calm, consumer pace).
 Story-first: open on the human moment, reveal the tech as the magic. Names
@@ -24,7 +24,7 @@ Your mate swipes right to take the other side. Her wallet matches your stake, an
 Then the match ends, and here's the real question. Who decides who won? Not a company. Three of your peers each grade the result with an AI running on their own machine, and sign the outcome. When two of them agree, the pot pays out. No oracle. No referee you're forced to trust.
 
 ## explorer
-And none of it happens in the dark. Every settle lands on Base Sepolia, out in the open, for anyone to check. The contract itself confirms the jury before a single coin moves.
+And none of it happens in the dark. Every settle lands on Base Sepolia, out in the open, for anyone to check. On screen: Settled on-chain - ecrecover 2-of-3 · QVAC · WDK. The contract itself confirms the jury before a single coin moves.
 
 ## close
-No bookie. No server. No oracle. Just you, your friends, and a bet that settles itself. Pears carries it, QVAC is the brain, WDK holds the money. That's Punt.
+No bookie. No server. No oracle. Just you, your friends, and a bet that settles itself. Remove Pears, QVAC, or WDK and the app dies - that's the whole product. That's Punt.

@@ -2,7 +2,18 @@
 const API = new URLSearchParams(location.search).get("api") ?? "http://127.0.0.1:9701";
 
 const $ = (id) => document.getElementById(id);
-const state = { bets: [], me: null, skipped: new Set(), revisiting: false, busy: false, draft: null, tab: "home", dragging: false, deckSignature: "" };
+const state = {
+  bets: [],
+  me: null,
+  skipped: new Set(),
+  revisiting: false,
+  busy: false,
+  draft: null,
+  tab: "home",
+  dragging: false,
+  deckSignature: "",
+  seenSettleTx: null,
+};
 
 async function api(path, body) {
   const res = await fetch(API + path, body ? { method: "POST", body: JSON.stringify(body) } : undefined);
@@ -38,10 +49,67 @@ async function apiParse(text, onDelta) {
 }
 
 function toast(msg, ms = 2600) {
-  $("toast").textContent = msg;
-  $("toast").style.display = "block";
+  const el = $("toast");
+  el.classList.remove("settle");
+  el.textContent = msg;
+  el.style.display = "block";
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => ($("toast").style.display = "none"), ms);
+  toast.t = setTimeout(() => {
+    el.style.display = "none";
+    el.classList.remove("settle");
+  }, ms);
+}
+
+/** Full settle moment — jury + ecrecover framing with explorer link. */
+function settleToast({ explorerUrl, txHash }) {
+  const el = $("toast");
+  el.classList.add("settle");
+  const short = txHash ? `${txHash.slice(0, 10)}…` : "tx";
+  el.innerHTML =
+    `<b>Settled on-chain</b>` +
+    `2 of 3 QVAC jurors · WDK signatures · Escrow ecrecover<br>` +
+    (explorerUrl
+      ? `<a href="${esc(explorerUrl)}" target="_blank" rel="noopener">${esc(short)} on Basescan →</a>`
+      : "");
+  el.style.display = "block";
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => {
+    el.style.display = "none";
+    el.classList.remove("settle");
+  }, 12000);
+}
+
+function shortTx(hash) {
+  if (!hash) return "—";
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
+function renderStackHud(snap) {
+  const s = snap.stack;
+  if (!s) return;
+  const pears = s.pears ?? {};
+  const qvac = s.qvac ?? {};
+  const wdk = s.wdk ?? {};
+  const peerN = pears.peers ?? 0;
+  const transport = pears.transport === "local" ? "local" : "dht";
+  const enc = pears.encrypted ? " · enc" : "";
+  const pearsEl = $("hud-pears");
+  pearsEl.textContent = `${peerN} peer${peerN === 1 ? "" : "s"} · ${transport}${enc}`;
+  pearsEl.className = "v" + (peerN > 0 ? "" : " dim");
+
+  const qvacEl = $("hud-qvac");
+  if (qvac.parseReady) {
+    qvacEl.textContent = "AI ready";
+    qvacEl.className = "v";
+  } else {
+    qvacEl.textContent = `loading ${Math.round(qvac.progress ?? 0)}%`;
+    qvacEl.className = "v warn";
+  }
+
+  const wdkEl = $("hud-wdk");
+  const last = wdk.lastTx ?? snap.lastTx?.settle ?? snap.lastTx?.join ?? snap.lastTx?.create;
+  wdkEl.textContent = last ? `tx ${shortTx(last)}` : `${(wdk.usdt ?? snap.usdt ?? 0).toFixed(1)} USDT`;
+  wdkEl.className = "v" + (last ? "" : " dim");
 }
 
 // every bet field came off the wire from a peer — escape before it touches innerHTML
@@ -68,10 +136,20 @@ async function refresh() {
     $("usdt").textContent = snap.usdt.toFixed(2);
     const open = snap.bets.filter((b) => b.potStatus === "open").length;
     const model = snap.modelReady ? "AI READY" : `AI LOADING ${Math.round(snap.modelProgress)}%`;
-    $("ticker").innerHTML = `LIVE FEED · <b>${open} OPEN</b> · ${snap.bets.length} TOTAL · <b>${model}</b> · NO BOOKIE · NO SERVER`;
+    const peers = snap.stack?.pears?.peers ?? 0;
+    $("ticker").innerHTML =
+      `LIVE FEED · <b>${open} OPEN</b> · ${snap.bets.length} TOTAL · <b>${peers} PEER${peers === 1 ? "" : "S"}</b> · <b>${model}</b> · NO BOOKIE · NO SERVER`;
+    renderStackHud(snap);
+    if (snap.settleEvent?.txHash && snap.settleEvent.txHash !== state.seenSettleTx) {
+      state.seenSettleTx = snap.settleEvent.txHash;
+      settleToast(snap.settleEvent);
+    }
     render();
   } catch {
     $("ticker").textContent = "PEER DAEMON UNREACHABLE — IS IT RUNNING?";
+    $("hud-pears").textContent = "offline";
+    $("hud-qvac").textContent = "—";
+    $("hud-wdk").textContent = "—";
   }
 }
 
@@ -189,9 +267,10 @@ async function commitSwipe(el, bet, take) {
   state.busy = true;
   toast(`Locking ${bet.stake} USDT into the pot…`, 60000);
   try {
-    await api("/join", { betId: bet.betId, stake: bet.stake });
+    const joined = await api("/join", { betId: bet.betId, stake: bet.stake });
     state.skipped.delete(bet.betId);
-    toast(`You're on. ${bet.stake} USDT staked — winner takes ${(bet.stake * 2).toFixed(2)}.`);
+    const tip = joined?.txHash ? ` · ${shortTx(joined.txHash)}` : "";
+    toast(`You're on. ${bet.stake} USDT staked — winner takes ${(bet.stake * 2).toFixed(2)}${tip}.`);
   } catch (err) {
     toast(`Stake didn't go through: ${err.message}`);
     el.classList.remove("flying");
@@ -266,8 +345,10 @@ function renderProfile() {
     </div>
     <div class="kv">
       <div class="row"><span class="k">Peer key</span><b>${esc((me.peerKey ?? me.feedKey).slice(0, 20))}…</b></div>
+      <div class="row"><span class="k">Pears</span><b>${esc(me.stack?.pears?.transport ?? "—")} · ${me.stack?.pears?.peers ?? 0} peers · ${me.stack?.pears?.encrypted ? "encrypted" : "open"}</b></div>
       <div class="row"><span class="k">Local AI</span><b>${me.modelReady ? "Llama 3.2 1B · ready" : `loading ${Math.round(me.modelProgress)}%`}</b></div>
-      <div class="row"><span class="k">Jury</span><b>3 peers · 2 must agree</b></div>
+      <div class="row"><span class="k">Jury</span><b>3 peers · 2 must agree · on-chain ecrecover</b></div>
+      <div class="row"><span class="k">Last tx</span><b>${esc(shortTx(me.stack?.wdk?.lastTx ?? me.lastTx?.settle ?? me.lastTx?.join ?? me.lastTx?.create))}</b></div>
       <div class="row"><span class="k">Custody</span><b>your keys, your machine</b></div>
     </div>`;
   $("copy-addr").onclick = () => {
