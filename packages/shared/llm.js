@@ -1,5 +1,5 @@
 /**
- * Local QVAC LLM — the only AI in Punt runs on this machine (track rule: no cloud).
+ * Local QVAC LLM - the only AI in Punt runs on this machine (track rule: no cloud).
  * cpu / gpu_layers:0 / ctx_size:4096 is the proven-good config for this hardware.
  */
 import { homedir } from "node:os";
@@ -18,18 +18,18 @@ import {
   WHISPER_EN_BASE_Q8_0,
 } from "@qvac/sdk";
 
-// Served from the Ollama registry — the HF CDN is unreachable from some networks.
+// Served from the Ollama registry - the HF CDN is unreachable from some networks.
 // Blob digest doubles as an integrity check.
 const JUDGE_GGUF = join(homedir(), ".qvac", "models", "qwen3-4b.gguf");
 const JUDGE_URL =
   "https://registry.ollama.ai/v2/library/qwen3/blobs/sha256:3e4cb14174460404e7a233e531675303b2fbf7749c02f91864fe311ab6344e4f";
 
 export const MODELS = {
-  // fast parse in the composer — latency matters, the user confirms the draft anyway
+  // fast parse in the composer - latency matters, the user confirms the draft anyway
   parse: LLAMA_3_2_1B_INST_Q4_0,
-  // juror grading — accuracy is the product; a 1B flips verdicts on 2-1 scorelines.
+  // juror grading - accuracy is the product; a 1B flips verdicts on 2-1 scorelines.
   // (The SDK's QWEN3_4B_Q4_K_M entry is mislabeled addon:"diffusion";
-  //  QWEN3_4B_INST_Q4_K_M is the correct llamacpp one — see startLocalLlm.)
+  //  QWEN3_4B_INST_Q4_K_M is the correct llamacpp one - see startLocalLlm.)
   judge: "judge",
 };
 
@@ -73,7 +73,7 @@ async function loadJudge(onProgress) {
     try {
       return await loadModel({ modelSrc: QWEN3_4B_INST_Q4_K_M, ...opts });
     } catch {
-      await ensureJudgeModel(onProgress); // registry unreachable — pinned blob fallback
+      await ensureJudgeModel(onProgress); // registry unreachable - pinned blob fallback
     }
   }
   return loadModel({ modelSrc: JUDGE_GGUF, modelType: "llamacpp-completion", ...opts });
@@ -122,7 +122,7 @@ export async function startLocalLlm({ onProgress, model = MODELS.parse } = {}) {
     modelId,
     run,
     betDraftSchema: BET_DRAFT_SCHEMA,
-    /** Release the model's memory — call on daemon shutdown. */
+    /** Release the model's memory - call on daemon shutdown. */
     close: () => unloadModel({ modelId }).catch(() => {}),
   };
 }
@@ -146,6 +146,54 @@ export async function startWhisper({ onProgress } = {}) {
     modelId,
     /** WAV/PCM buffer (or file path) → transcript text. */
     transcribe: (audio) => transcribe({ modelId, audioChunk: audio }),
+    close: () => unloadModel({ modelId }).catch(() => {}),
+  };
+}
+
+/**
+ * On-device text-to-speech (Supertonic/Chatterbox, ~200MB). Reads the parsed
+ * bet draft back to the user: "You're staking 10 USDT that Arsenal beats
+ * Tottenham. Swipe to confirm." Loaded once per peer session.
+ *
+ * @returns {Promise<{ modelId: string, speak: (text: string) => Promise<Buffer>, close: () => Promise<void> }>}
+ */
+export async function startTts({ onProgress } = {}) {
+  const { textToSpeech } = await import("@qvac/sdk");
+  const modelId = await loadModel({
+    modelSrc: "chatterbox-en-q8-0",
+    modelType: "tts",
+    onProgress: (p) => onProgress?.(p.percentage),
+  });
+  return {
+    modelId,
+    /** Plain text → WAV audio buffer. */
+    speak: async (text) => {
+      const result = await textToSpeech({ modelId, text });
+      return result.audio;
+    },
+    close: () => unloadModel({ modelId }).catch(() => {}),
+  };
+}
+
+/**
+ * On-device voice activity detection (Silero VAD, ~2MB). Detects when the
+ * user stops speaking in push-to-talk mode so the composer auto-transcribes
+ * without a manual stop button.
+ *
+ * @returns {Promise<{ modelId: string, detect: (audioChunk: Buffer) => Promise<{ speech: boolean }>, close: () => Promise<void> }>}
+ */
+export async function startVad({ onProgress } = {}) {
+  const { createVad } = await import("@qvac/sdk");
+  const modelId = await loadModel({
+    modelSrc: "silero-vad",
+    modelType: "vad",
+    onProgress: (p) => onProgress?.(p.percentage),
+  });
+  const detector = await createVad({ modelId });
+  return {
+    modelId,
+    /** Raw audio chunk → { speech: boolean }. Returns true while user is speaking. */
+    detect: (audioChunk) => detector.detect(audioChunk),
     close: () => unloadModel({ modelId }).catch(() => {}),
   };
 }

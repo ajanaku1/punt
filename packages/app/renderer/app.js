@@ -93,8 +93,9 @@ function renderStackHud(snap) {
   const peerN = pears.peers ?? 0;
   const transport = pears.transport === "local" ? "local" : "dht";
   const enc = pears.encrypted ? " · enc" : "";
+  const id = pears.identity ? ` · ${pears.identity}` : "";
   const pearsEl = $("hud-pears");
-  pearsEl.textContent = `${peerN} peer${peerN === 1 ? "" : "s"} · ${transport}${enc}`;
+  pearsEl.textContent = `${peerN} peer${peerN === 1 ? "" : "s"} · ${transport}${enc}${id}`;
   pearsEl.className = "v" + (peerN > 0 ? "" : " dim");
 
   const qvacEl = $("hud-qvac");

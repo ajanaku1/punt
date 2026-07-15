@@ -1,5 +1,5 @@
 /**
- * Juror daemon — one of the three peers whose local LLMs settle bets.
+ * Juror daemon - one of the three peers whose local LLMs settle bets.
  * Watches the feed for matched bets whose match has finished, grades the
  * resolution against football-data.org with its own on-device model at
  * temperature 0, signs the verdict with its EVM key, and gossips it back
@@ -19,6 +19,7 @@ import { betHash } from "@punt/shared/bet.js";
 import { startLocalLlm, MODELS } from "@punt/shared/llm.js";
 import { signVerdict } from "@punt/shared/verdict.js";
 import { settlementConfigFromEnv, signingAccount } from "@punt/shared/wdk.js";
+import { loadOrCreateIdentity } from "@punt/shared/identity.js";
 import { buildGradeHistory, extractGrade, GRADE_SCHEMA } from "./grade.js";
 import { footballData } from "./football.js";
 import { readEnvFile, ROOT } from "../../scripts/env-file.js";
@@ -28,15 +29,15 @@ const env = Object.fromEntries(await readEnvFile());
 const log = (...a) => console.log(`[juror ${n}]`, ...a);
 
 // Verdicts are signed by a self-custodial WDK account (same stack as the
-// stakes) — so every signature in Punt, money and jury alike, is WDK-native.
+// stakes) - so every signature in Punt, money and jury alike, is WDK-native.
 const account = await signingAccount(env[`JUROR${n}_MNEMONIC`], settlementConfigFromEnv(env));
 const jurorAddress = await account.getAddress();
 
 if (!env.FOOTBALL_DATA_KEY) {
-  console.error(`[juror ${n}] FOOTBALL_DATA_KEY missing from .env — cannot grade without official results`);
+  console.error(`[juror ${n}] FOOTBALL_DATA_KEY missing from .env - cannot grade without official results`);
   process.exit(1);
 }
-// FOOTBALL_DATA_URL override exists for local pipeline testing only — the real
+// FOOTBALL_DATA_URL override exists for local pipeline testing only - the real
 // demo runs against api.football-data.org
 const results = footballData(env.FOOTBALL_DATA_KEY, fetch, env.FOOTBALL_DATA_URL || undefined);
 
@@ -51,7 +52,7 @@ const chainId = BigInt(env.CHAIN_ID ?? 84532);
 const feed = await createFeed({
   storage: join(ROOT, ".stores", `juror${n}`),
   key: Buffer.from(env.FEED_KEY, "hex"),
-  encryptionKey: env.FEED_SECRET ? Buffer.from(env.FEED_SECRET, "hex") : null, // group secret — jurors read the pots too
+  encryptionKey: env.FEED_SECRET ? Buffer.from(env.FEED_SECRET, "hex") : null, // group secret - jurors read the pots too
 });
 if (process.env.PUNT_FEED_LOCAL) {
   const [host, port] = (process.env.PUNT_FEED_CONNECT ?? "127.0.0.1:9471").split(":");
@@ -64,12 +65,15 @@ if (process.env.PUNT_FEED_LOCAL) {
     sock.on("close", () => setTimeout(connect, 1500));
   })();
 } else {
-  joinFeedSwarm(feed); // real Hyperswarm DHT discovery — default
+  joinFeedSwarm(feed); // real Hyperswarm DHT discovery - default
 }
+
+const jurorIdentity = await loadOrCreateIdentity(join(ROOT, ".stores", `juror${n}`));
+log(`identity ${jurorIdentity.fingerprint}`);
 
 log("loading local model…");
 const llm = await startLocalLlm({ model: MODELS.judge, onProgress: () => {} });
-log(`ready — signing as ${jurorAddress}`);
+log(`ready - signing as ${jurorAddress}  identity ${jurorIdentity.fingerprint}`);
 
 // release the model + feed cleanly on shutdown
 for (const sig of ["SIGINT", "SIGTERM"]) {
@@ -85,12 +89,12 @@ async function gradeBet(bet, betId, pot) {
 
   const raw = await llm.run(buildGradeHistory(bet, evidence), GRADE_SCHEMA);
   const grade = extractGrade(raw);
-  if (!grade.ok) return log(`grade unusable (${grade.error}) — abstaining`);
+  if (!grade.ok) return log(`grade unusable (${grade.error}) - abstaining`);
 
   const winner = grade.creatorWins ? pot.creator : pot.joiner;
   const sig = await signVerdict(account, { chainId, escrow: env.ESCROW_CONTRACT, betId: "0x" + betId, winner });
   await feed.postVerdict({ type: "verdict", betId, winner, juror: jurorAddress, sig, reasoning: grade.reasoning });
-  log(`VERDICT on ${betId.slice(0, 12)}…: creator ${grade.creatorWins ? "WINS" : "LOSES"} — ${grade.reasoning}`);
+  log(`VERDICT on ${betId.slice(0, 12)}…: creator ${grade.creatorWins ? "WINS" : "LOSES"} - ${grade.reasoning}`);
 }
 
 const graded = new Set();

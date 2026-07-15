@@ -6,7 +6,7 @@ plan.md
 # Dependencies
 node_modules/
 
-# Secrets — never commit
+# Secrets - never commit
 .env
 .env.*
 !.env.example
@@ -44,6 +44,7 @@ video/
 
 # archived original-build scaffolding (local only)
 Goal.original.md
+Goal.semifinal.md
 prompt.original.md
 plan.original.md
 

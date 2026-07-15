@@ -13,6 +13,7 @@ A reproducible walk-through for a code reviewer. Tier 0 needs no install. Tier 1
 |----------|---------|----------|
 | Escrow | `0xc98aC5F473FfAA871f66A09c6cCb1c8D95579DD8` | https://sepolia.basescan.org/address/0xc98aC5F473FfAA871f66A09c6cCb1c8D95579DD8 |
 | MockUSDT | `0x6C93725DFaBE02410a76ea3504579588A49a90B2` | https://sepolia.basescan.org/address/0x6C93725DFaBE02410a76ea3504579588A49a90B2 |
+| PuntUSDT (EIP-3009) | `0x41fD722Bc53426fA2a13b42a3dDF82569E870374` | https://sepolia.basescan.org/address/0x41fD722Bc53426fA2a13b42a3dDF82569E870374 |
 
 ## Golden on-chain flow (zero install)
 
@@ -39,12 +40,13 @@ Each command is one line. Expected result and the pass gate are listed next to i
 
 | # | Command | What it proves | Pass gate |
 |---|---------|----------------|-----------|
-| 1 | `npm test` | Schema, feed reducer + encryption, escrow (2-of-3 and refund), parse, verdicts, WDK signing, DHT wiring, multi-peer convergence | `tests 50 / pass 50 / fail 0`. Escrow tests need Foundry's `anvil` on the path. |
-| 2 | `npm run compile` | Contracts still compile with no RPC and no keys | Prints `MockUSDT compiled` and `Escrow compiled` |
-| 3 | `npm run coverage` | Line and branch coverage of the core packages | `feed.js` 100%, overall about 92% statements |
-| 4 | `npm run jury:demo` | The settlement jury is real on-device AI. Loads Qwen3 4B (about 2.3GB on first run) and grades five tricky fixtures at temperature 0, including a 2-1 scoreline that flips a smaller model | `5/5 verdicts correct` |
+| 1 | `npm test` | Schema, feed reducer + encryption, escrow, parse, verdicts, WDK signing, DHT wiring, multi-peer convergence, verdict edge cases | `tests 68 / pass 68 / fail 0`. Escrow tests need Foundry's `anvil`. |
+| 2 | `npm run compile` | Contracts compile with no RPC and no keys | Prints `MockUSDT compiled`, `Escrow compiled`, `PuntUSDT compiled` |
+| 3 | `npm run coverage` | Line and branch coverage | `feed.js` 100%, overall about 92% statements |
+| 4 | `npm run jury:demo` | The settlement jury is real on-device AI. Qwen3 4B grades five tricky fixtures at temperature 0 | `5/5 verdicts correct` |
 | 5 | `node scripts/junk-check.js` | Junk and impersonation never reach the feed view | Only the valid bet appears |
 | 6 | `node scripts/p2p-check.js` | Two separate processes replicate over Autobase | The bet posted by one process appears in the other |
+| 7 | `npm run demo:all` | All three stacks boot in one command | Pears feed, QVAC jury, WDK stake print labeled stages |
 
 ## Tier 2: full on-chain cycle
 
@@ -72,9 +74,11 @@ Follow the checklist printed in the terminal. Creator posts a bet on a finished 
 
 ## Pass/fail summary
 
-- [ ] `npm test` reports 50 passing
+- [ ] `npm test` reports 68 passing
 - [ ] `npm run compile` succeeds with no RPC or keys
 - [ ] `npm run jury:demo` reports 5/5 correct on-device verdicts
 - [ ] `node scripts/junk-check.js` rejects junk
 - [ ] Golden settle tx opens on Basescan (`0x403b1dec…`)
-- [ ] Stack HUD shows Pears peer count, QVAC ready, WDK last tx after a stake
+- [ ] PuntUSDT deployment verified on Basescan (`0x41fD72…`)
+- [ ] `docs/adr/` contains 7 architecture decision records
+- [ ] Stack HUD shows Pears peer count + identity, QVAC ready, WDK last tx after a stake

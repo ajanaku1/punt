@@ -1,11 +1,11 @@
 /**
- * Punt peer daemon — one per user. Owns the three pillars for this peer:
+ * Punt peer daemon - one per user. Owns the three pillars for this peer:
  * the Autobase feed, the WDK wallet, and the local QVAC LLM. The Electron
- * renderer is dumb chrome that talks to this over localhost JSON — no native
+ * renderer is dumb chrome that talks to this over localhost JSON - no native
  * modules ever load inside Electron.
  *
  * Transport: by default peers discover each other on the Hyperswarm DHT via
- * the feed's discovery key — no host:port anywhere. Set PUNT_FEED_LOCAL=1 to
+ * the feed's discovery key - no host:port anywhere. Set PUNT_FEED_LOCAL=1 to
  * use the deterministic localhost-TCP path instead (offline demo / tests).
  *
  * Env: PUNT_ROLE=CREATOR|JOINER, PUNT_UI_PORT. PUNT_FEED_LISTEN marks the
@@ -25,6 +25,7 @@ import { buildParseHistory, extractBetDraft } from "@punt/shared/parse.js";
 import { startLocalLlm, startWhisper, cancelRun } from "@punt/shared/llm.js";
 import { settlementConfigFromEnv, signingAccount, usdtBalance } from "@punt/shared/wdk.js";
 import { majorityWinner } from "@punt/shared/verdict.js";
+import { loadOrCreateIdentity } from "@punt/shared/identity.js";
 import { readEnvFile, writeEnvFile, ROOT } from "../../scripts/env-file.js";
 
 const role = process.env.PUNT_ROLE ?? "CREATOR";
@@ -56,7 +57,7 @@ const feed = await (async () => {
   }
 
   if (!localTransport) {
-    const handle = joinFeedSwarm(f); // real Hyperswarm DHT discovery — default
+    const handle = joinFeedSwarm(f); // real Hyperswarm DHT discovery - default
     f._puntSwarm = handle;
     return f;
   }
@@ -113,14 +114,19 @@ startLocalLlm({ onProgress: (p) => (llmProgress = p) })
   .then((l) => (llm = l))
   .catch((err) => console.error("LLM failed to start:", err.message));
 
+// Persistent peer identity - survives restarts, surfaces in stack HUD
+const identity = await loadOrCreateIdentity(join(ROOT, ".stores", role.toLowerCase()));
+
 // ---- helpers ------------------------------------------------------------
 
-/** Last on-chain hashes this peer produced — surfaces in the stack HUD. */
+/** Last on-chain hashes this peer produced - surfaces in the stack HUD. */
 const lastTx = { create: null, join: null, settle: null, approve: null };
 /** @type {{ betId: string, txHash: string, explorerUrl: string, at: number } | null} */
 let lastSettleEvent = null;
 
 const EXPLORER_TX = "https://sepolia.basescan.org/tx/";
+const GASLESS = !!process.env.PUNT_GASLESS;
+const FACILITATOR_URL = process.env.PUNT_FACILITATOR_URL ?? "http://127.0.0.1:9780";
 
 async function sendAndWait(to, data, label) {
   const { hash } = await account.sendTransaction({ to, data });
@@ -202,12 +208,13 @@ async function stateSnapshot() {
     modelProgress: llmProgress,
     feedKey: feed.key.toString("hex"),
     peerKey: feed.localKey.toString("hex"),
-    // stack HUD — judge-visible proof that Pears / QVAC / WDK are live
+    // stack HUD - judge-visible proof that Pears / QVAC / WDK are live
     stack: {
       pears: {
         transport: localTransport ? "local" : "hyperswarm",
         peers: peerCount,
         encrypted: !!env.FEED_SECRET,
+        identity: identity.fingerprint,
       },
       qvac: {
         parseReady: !!llm,
@@ -258,8 +265,61 @@ async function postBet(draft) {
   return { betId, txHash: createHash, explorerUrl: EXPLORER_TX + createHash };
 }
 
+/**
+ * Gasless stake: sign an EIP-3009 TransferWithAuthorization off-chain,
+ * POST to the facilitator, which submits the tx with sponsor gas.
+ * The joiner never holds ETH - the facilitator pays.
+ */
+async function gaslessStake(betId, stakeUnits) {
+  const usdtAddr = env.PUNTUSDT_CONTRACT ?? env.USDT_CONTRACT;
+  if (!usdtAddr) throw new Error("PUNTUSDT_CONTRACT not set - cannot sign gasless authorization");
+
+  // Sign the EIP-712 typed data with an ethers Wallet (derived from the
+  // same mnemonic the WDK account uses - identical private key).
+  const signer = ethers.Wallet.fromPhrase(env[`${role}_MNEMONIC`]);
+  const nonce = ethers.id(`${betId}:${Date.now()}:${Math.random()}`);
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const validAfter = now - 60n;  // 1-minute grace
+  const validBefore = now + 1800n; // 30-minute window
+
+  const domain = {
+    name: "Punt USDT (test)",
+    version: "1",
+    chainId: cfg.chainId,
+    verifyingContract: usdtAddr,
+  };
+  const types = {
+    TransferWithAuthorization: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "validAfter", type: "uint256" },
+      { name: "validBefore", type: "uint256" },
+      { name: "nonce", type: "bytes32" },
+    ],
+  };
+  const value = { from: await signer.getAddress(), to: cfg.escrowContract, value: stakeUnits, validAfter, validBefore, nonce };
+  const sig = await signer.signTypedData(domain, types, value);
+
+  const payload = { ...value, ...ethers.Signature.from(sig) };
+
+  const res = await fetch(`${FACILITATOR_URL}/relay/transfer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await res.json();
+  if (!result.ok) throw new Error(`gasless stake failed: ${result.error}`);
+  return result.txHash;
+}
+
 async function joinBet(betId, stake) {
   const units = toUnits(stake);
+  if (GASLESS) {
+    const joinHash = await gaslessStake(betId, units);
+    potCache.delete(betId);
+    return { betId, txHash: joinHash, explorerUrl: EXPLORER_TX + joinHash };
+  }
   await approveStake(units);
   const joinHash = await sendAndWait(cfg.escrowContract, escrowAbi.encodeFunctionData("join", ["0x" + betId]), "join pot");
   potCache.delete(betId);
@@ -280,7 +340,7 @@ async function settleWatch() {
       betId: "0x" + betId,
     });
     if (!majority || majority.winner !== myAddress) continue;
-    console.log(`[${role}] jury majority says we won ${betId.slice(0, 12)}… — settling`);
+    console.log(`[${role}] jury majority says we won ${betId.slice(0, 12)}… - settling`);
     try {
       const settleHash = await sendAndWait(
         cfg.escrowContract,
@@ -296,7 +356,7 @@ async function settleWatch() {
         explorerUrl: EXPLORER_TX + settleHash,
         at: Date.now(),
       };
-      console.log(`[${role}] pot released — the winner's USDT is home (${settleHash})`);
+      console.log(`[${role}] pot released - the winner's USDT is home (${settleHash})`);
     } catch (err) {
       console.error(`[${role}] settle failed:`, err.message);
     }
@@ -330,7 +390,7 @@ const routes = {
 };
 
 // The composer parse streams over SSE: the user watches the on-device model
-// write the bet terms token by token. Latest-wins — a retype cancels the
+// write the bet terms token by token. Latest-wins - a retype cancels the
 // in-flight run on the model instead of letting it burn to completion.
 let activeParseId = null;
 async function handleParse(req, res) {
@@ -345,7 +405,7 @@ async function handleParse(req, res) {
     emit("error", { error: "model still loading" });
     return res.end();
   }
-  if (activeParseId) cancelRun(activeParseId); // stale parse — the user retyped
+  if (activeParseId) cancelRun(activeParseId); // stale parse - the user retyped
   let myId = null;
   try {
     const raw = await llm.run(buildParseHistory(text), llm.betDraftSchema, {
@@ -382,7 +442,7 @@ http
     }
   })
   .listen(uiPort, "127.0.0.1", () => {
-    console.log(`[${role}] peer daemon on http://127.0.0.1:${uiPort} — wallet ${myAddress}`);
+    console.log(`[${role}] peer daemon on http://127.0.0.1:${uiPort} - wallet ${myAddress}`);
   });
 
 // release the models + feed cleanly on shutdown
